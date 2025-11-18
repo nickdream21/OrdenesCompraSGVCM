@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Órdenes de Compra - Profesional</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <h1><i class="fas fa-file-invoice"></i> Sistema de Órdenes de Compra</h1>
+                <p class="subtitle">Genera órdenes de compra profesionales en PDF</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="nav-tabs">
+        <div class="container">
+            <button class="tab-btn active" data-tab="generate">
+                <i class="fas fa-plus-circle"></i> Generar OC
+            </button>
+            <button class="tab-btn" data-tab="templates">
+                <i class="fas fa-th-large"></i> Templates
+            </button>
+            <button class="tab-btn" data-tab="history">
+                <i class="fas fa-history"></i> Historial
+            </button>
+            <button class="tab-btn" data-tab="editor">
+                <i class="fas fa-code"></i> Editor de Templates
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            
+            <!-- TAB 1: GENERAR OC -->
+            <div class="tab-content active" id="generate">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-file-alt"></i> Nueva Orden de Compra</h2>
+                    </div>
+                    <div class="card-body">
+                        
+                        <!-- Selección de Template -->
+                        <div class="form-section">
+                            <h3>1. Selecciona el Template</h3>
+                            <div class="template-selector" id="templateSelector">
+                                <div class="loading">
+                                    <i class="fas fa-spinner fa-spin"></i> Cargando templates...
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Formulario Dinámico -->
+                        <div class="form-section" id="formSection" style="display: none;">
+                            <h3>2. Completa la Información</h3>
+                            <form id="ocForm">
+                                <div id="formFields"></div>
+                                
+                                <div class="form-actions">
+                                    <button type="button" class="btn btn-secondary" id="clearForm">
+                                        <i class="fas fa-eraser"></i> Limpiar
+                                    </button>
+                                    <button type="button" class="btn btn-success" id="previewBtn">
+                                        <i class="fas fa-eye"></i> Vista Previa
+                                    </button>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-file-pdf"></i> Generar PDF
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: TEMPLATES -->
+            <div class="tab-content" id="templates">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-th-large"></i> Gestión de Templates</h2>
+                        <button class="btn btn-primary btn-sm" id="newTemplateBtn">
+                            <i class="fas fa-plus"></i> Nuevo Template
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="templates-grid" id="templatesGrid">
+                            <div class="loading">
+                                <i class="fas fa-spinner fa-spin"></i> Cargando templates...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: HISTORIAL -->
+            <div class="tab-content" id="history">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-history"></i> Historial de PDFs Generados</h2>
+                        <button class="btn btn-secondary btn-sm" id="refreshHistoryBtn">
+                            <i class="fas fa-sync-alt"></i> Actualizar
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="data-table" id="historyTable">
+                                <thead>
+                                    <tr>
+                                        <th>Archivo</th>
+                                        <th>Tamaño</th>
+                                        <th>Fecha</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="4" class="text-center">
+                                            <div class="loading">
+                                                <i class="fas fa-spinner fa-spin"></i> Cargando historial...
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: EDITOR DE TEMPLATES -->
+            <div class="tab-content" id="editor">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-code"></i> Editor de Templates</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="editor-container">
+                            <div class="editor-toolbar">
+                                <input type="text" id="templateName" class="form-control" 
+                                       placeholder="Nombre del template (sin extensión)" style="max-width: 300px;">
+                                <button class="btn btn-success" id="saveTemplateBtn">
+                                    <i class="fas fa-save"></i> Guardar Template
+                                </button>
+                            </div>
+                            
+                            <div class="editor-help">
+                                <details>
+                                    <summary><i class="fas fa-question-circle"></i> Ayuda - Sintaxis del Template</summary>
+                                    <div class="help-content">
+                                        <h4>Variables EJS:</h4>
+                                        <ul>
+                                            <li><code>&lt;%= variable %&gt;</code> - Imprime el valor de una variable</li>
+                                            <li><code>&lt;%- html %&gt;</code> - Imprime HTML sin escapar</li>
+                                            <li><code>&lt;% codigo %&gt;</code> - Ejecuta código JavaScript</li>
+                                        </ul>
+                                        
+                                        <h4>Funciones disponibles:</h4>
+                                        <ul>
+                                            <li><code>&lt;%= formatCurrency(valor, 'S/.') %&gt;</code> - Formatea números como moneda</li>
+                                            <li><code>&lt;%= formatNumber(valor, 2) %&gt;</code> - Formatea números con decimales</li>
+                                            <li><code>&lt;%= moment(fecha).format('DD/MM/YYYY') %&gt;</code> - Formatea fechas</li>
+                                        </ul>
+
+                                        <h4>Configuración del Template (opcional):</h4>
+                                        <pre>&lt;%# CONFIG: {
+  "displayName": "Nombre del Template",
+  "description": "Descripción",
+  "fields": [
+    {"name": "campo1", "label": "Campo 1", "type": "text", "required": true},
+    {"name": "campo2", "label": "Campo 2", "type": "number"}
+  ]
+} %&gt;</pre>
+                                    </div>
+                                </details>
+                            </div>
+
+                            <textarea id="templateEditor" class="code-editor" 
+                                      placeholder="Escribe tu template HTML aquí..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal para Vista Previa -->
+    <div class="modal" id="previewModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fas fa-eye"></i> Vista Previa</h2>
+                <button class="modal-close" onclick="closeModal('previewModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <iframe id="previewFrame" style="width: 100%; height: 70vh; border: 1px solid #ddd;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast de Notificaciones -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
+</body>
+</html>

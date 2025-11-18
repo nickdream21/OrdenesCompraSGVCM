@@ -1,0 +1,352 @@
+<%# CONFIG: {
+  "displayName": "Orden de Compra - Importación (USD)",
+  "description": "Template para órdenes de compra de importación sin IGV",
+  "fields": [
+    {"name": "oc_number", "label": "Número de OC", "type": "text", "required": true, "placeholder": "000000"},
+    {"name": "fecha", "label": "Fecha", "type": "text", "required": true, "placeholder": "DD de Mes de YYYY"},
+    {"name": "obra", "label": "Proyecto/Obra", "type": "textarea", "required": true},
+    {"name": "proveedor_nombre", "label": "Proveedor - Nombre", "type": "text", "required": true},
+    {"name": "proveedor_ruc", "label": "Proveedor - RUC", "type": "text", "required": true},
+    {"name": "proveedor_direccion", "label": "Proveedor - Dirección", "type": "text", "required": true},
+    {"name": "proveedor_telefono", "label": "Proveedor - Teléfono", "type": "text"},
+    {"name": "proveedor_email", "label": "Proveedor - Email", "type": "text"},
+    {"name": "moneda", "label": "Moneda", "type": "select", "options": ["USD", "S/.", "EUR"], "required": true},
+    {"name": "items", "label": "Items", "type": "array", "itemLabel": "Item", "fields": [
+      {"name": "cantidad", "label": "Cantidad", "type": "number", "step": "0.01"},
+      {"name": "unidad", "label": "Unidad", "type": "text"},
+      {"name": "descripcion", "label": "Descripción", "type": "text"},
+      {"name": "precio_unitario", "label": "Precio Unitario", "type": "number", "step": "0.01"}
+    ]},
+    {"name": "condiciones_pago", "label": "Condiciones de Pago", "type": "text", "required": true},
+    {"name": "lugar_entrega", "label": "Lugar de Entrega", "type": "text", "required": true},
+    {"name": "facturacion_razon_social", "label": "Facturación - Razón Social", "type": "text", "required": true},
+    {"name": "facturacion_ruc", "label": "Facturación - RUC", "type": "text", "required": true},
+    {"name": "facturacion_direccion", "label": "Facturación - Dirección", "type": "text", "required": true},
+    {"name": "contacto_nombres", "label": "Contacto - Nombres", "type": "text", "required": true},
+    {"name": "contacto_dni", "label": "Contacto - DNI", "type": "text", "required": true},
+    {"name": "contacto_telefono", "label": "Contacto - Teléfono", "type": "text", "required": true}
+  ]
+} %>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Orden de Compra <%= oc_number %></title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.4;
+            padding: 20px;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 15px;
+        }
+        
+        .company-info {
+            flex: 1;
+        }
+        
+        .company-name {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 5px;
+        }
+        
+        .company-details {
+            font-size: 9pt;
+            color: #666;
+        }
+        
+        .oc-info {
+            text-align: right;
+            border: 2px solid #2563eb;
+            padding: 10px;
+            background-color: #f0f7ff;
+        }
+        
+        .oc-number {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #2563eb;
+        }
+        
+        .section-title {
+            background-color: #2563eb;
+            color: white;
+            padding: 8px;
+            font-weight: bold;
+            margin-top: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .info-item {
+            padding: 8px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 3px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        
+        th {
+            background-color: #2563eb;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+        }
+        
+        td {
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .text-right {
+            text-align: right;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .total-section {
+            margin-top: 20px;
+            float: right;
+            width: 300px;
+        }
+        
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .total-row.grand-total {
+            background-color: #2563eb;
+            color: white;
+            font-weight: bold;
+            font-size: 11pt;
+        }
+        
+        .footer {
+            clear: both;
+            margin-top: 80px;
+            padding-top: 20px;
+            border-top: 2px solid #ddd;
+        }
+        
+        .signature-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 50px;
+        }
+        
+        .signature-box {
+            text-align: center;
+        }
+        
+        .signature-line {
+            border-top: 1px solid #333;
+            margin-top: 40px;
+            padding-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- HEADER -->
+    <div class="header">
+        <div class="company-info">
+            <div class="company-name">SERVICIOS GENERALES VIVIANA E.I.R.L.</div>
+            <div class="company-details">
+                RUC: 20483851171<br>
+                Urb. Jardín 2 Etapa Nº D-2 Int. 13<br>
+                Sullana - Piura - Perú<br>
+                Tel: +51 073 502 745
+            </div>
+        </div>
+        <div class="oc-info">
+            <div class="oc-number">ORDEN DE COMPRA</div>
+            <div>Nº <%= oc_number %></div>
+            <div style="margin-top: 5px;"><%= fecha %></div>
+        </div>
+    </div>
+
+    <!-- PROYECTO -->
+    <div class="section-title">PROYECTO / OBRA</div>
+    <div class="info-item">
+        <%= obra %>
+    </div>
+
+    <!-- DATOS DEL PROVEEDOR -->
+    <div class="section-title">DATOS DEL PROVEEDOR</div>
+    <div class="info-grid">
+        <div class="info-item">
+            <div class="info-label">Razón Social:</div>
+            <%= proveedor_nombre %>
+        </div>
+        <div class="info-item">
+            <div class="info-label">RUC:</div>
+            <%= proveedor_ruc %>
+        </div>
+        <div class="info-item" style="grid-column: 1 / -1;">
+            <div class="info-label">Dirección:</div>
+            <%= proveedor_direccion %>
+        </div>
+        <% if (proveedor_telefono) { %>
+        <div class="info-item">
+            <div class="info-label">Teléfono:</div>
+            <%= proveedor_telefono %>
+        </div>
+        <% } %>
+        <% if (proveedor_email) { %>
+        <div class="info-item">
+            <div class="info-label">Email:</div>
+            <%= proveedor_email %>
+        </div>
+        <% } %>
+    </div>
+
+    <!-- DETALLE DE LA ORDEN -->
+    <div class="section-title">DETALLE DE LA ORDEN</div>
+    <table>
+        <thead>
+            <tr>
+                <th class="text-center" style="width: 10%;">CANT.</th>
+                <th class="text-center" style="width: 10%;">UND</th>
+                <th>DESCRIPCIÓN</th>
+                <th class="text-right" style="width: 15%;">P. UNITARIO</th>
+                <th class="text-right" style="width: 15%;">TOTAL</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% 
+            let subtotal = 0;
+            items.forEach(item => {
+                const cantidad = parseFloat(item.cantidad) || 0;
+                const precio = parseFloat(item.precio_unitario) || 0;
+                const total = cantidad * precio;
+                subtotal += total;
+            %>
+            <tr>
+                <td class="text-center"><%= formatNumber(cantidad, 2) %></td>
+                <td class="text-center"><%= item.unidad %></td>
+                <td><%= item.descripcion %></td>
+                <td class="text-right"><%= formatCurrency(precio, moneda) %></td>
+                <td class="text-right"><%= formatCurrency(total, moneda) %></td>
+            </tr>
+            <% }); %>
+        </tbody>
+    </table>
+
+    <!-- TOTALES -->
+    <div class="total-section">
+        <div class="total-row grand-total">
+            <span>TOTAL <%= moneda %>:</span>
+            <span><%= formatCurrency(subtotal, moneda) %></span>
+        </div>
+    </div>
+
+    <!-- CONDICIONES -->
+    <div style="clear: both; margin-top: 30px;">
+        <div class="section-title">CONDICIONES COMERCIALES</div>
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">Condiciones de Pago:</div>
+                <%= condiciones_pago %>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Lugar de Entrega:</div>
+                <%= lugar_entrega %>
+            </div>
+        </div>
+    </div>
+
+    <!-- FACTURACIÓN -->
+    <div class="section-title">DATOS PARA FACTURACIÓN</div>
+    <div class="info-grid">
+        <div class="info-item">
+            <div class="info-label">Razón Social:</div>
+            <%= facturacion_razon_social %>
+        </div>
+        <div class="info-item">
+            <div class="info-label">RUC:</div>
+            <%= facturacion_ruc %>
+        </div>
+        <div class="info-item" style="grid-column: 1 / -1;">
+            <div class="info-label">Dirección:</div>
+            <%= facturacion_direccion %>
+        </div>
+    </div>
+
+    <!-- CONTACTO -->
+    <div class="section-title">CONTACTO PARA ENTREGA</div>
+    <div class="info-grid">
+        <div class="info-item">
+            <div class="info-label">Nombres y Apellidos:</div>
+            <%= contacto_nombres %>
+        </div>
+        <div class="info-item">
+            <div class="info-label">DNI:</div>
+            <%= contacto_dni %>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Teléfono:</div>
+            <%= contacto_telefono %>
+        </div>
+    </div>
+
+    <!-- FIRMAS -->
+    <div class="footer">
+        <div class="signature-section">
+            <div class="signature-box">
+                <div class="signature-line">
+                    <strong>APROBADO POR</strong><br>
+                    Servicios Generales Viviana E.I.R.L.
+                </div>
+            </div>
+            <div class="signature-box">
+                <div class="signature-line">
+                    <strong>RECIBIDO POR</strong><br>
+                    <%= proveedor_nombre %>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

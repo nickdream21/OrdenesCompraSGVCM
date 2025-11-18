@@ -1,0 +1,24 @@
+{
+  "name": "oc-web-system",
+  "version": "1.0.0",
+  "description": "Sistema Web Profesional para Generación de Órdenes de Compra",
+  "main": "server/app.js",
+  "scripts": {
+    "start": "node server/app.js",
+    "dev": "nodemon server/app.js"
+  },
+  "keywords": ["orden-compra", "pdf", "web-app"],
+  "author": "Nick",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "puppeteer": "^21.5.2",
+    "ejs": "^3.1.9",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "moment": "^2.29.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
