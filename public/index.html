@@ -47,26 +47,62 @@
                         <h2><i class="fas fa-file-alt"></i> Nueva Orden de Compra</h2>
                     </div>
                     <div class="card-body">
-                        
-                        <!-- Selección de Template -->
+
+                        <!-- Paso 1: Selección de Empresa -->
                         <div class="form-section">
-                            <h3>1. Selecciona el Template</h3>
-                            <div class="template-selector" id="templateSelector">
-                                <div class="loading">
-                                    <i class="fas fa-spinner fa-spin"></i> Cargando templates...
+                            <h3><i class="fas fa-building"></i> Paso 1: Selecciona la Empresa</h3>
+                            <div class="empresa-selector">
+                                <div class="empresa-card" data-empresa="viviana">
+                                    <div class="empresa-icon">
+                                        <i class="fas fa-truck"></i>
+                                    </div>
+                                    <h4>Servicios Generales VIVIANA</h4>
+                                    <p>E.I.R.L.</p>
+                                    <span class="empresa-badge">RUC: 20483851171</span>
+                                </div>
+                                <div class="empresa-card" data-empresa="camafra">
+                                    <div class="empresa-icon" style="color: #ff6600;">
+                                        <i class="fas fa-hard-hat"></i>
+                                    </div>
+                                    <h4>CAMAFRA MOTORS</h4>
+                                    <p>S.A.C.</p>
+                                    <span class="empresa-badge">RUC: 20529940395</span>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Formulario Dinámico -->
+                        <!-- Paso 2: Selección de Tipo de OC -->
+                        <div class="form-section" id="tipoOCSection" style="display: none;">
+                            <h3><i class="fas fa-list-alt"></i> Paso 2: Tipo de Orden de Compra</h3>
+                            <div class="tipo-oc-selector" id="tipoOCSelector">
+                                <!-- Se llenará dinámicamente -->
+                            </div>
+                        </div>
+
+                        <!-- Paso 3: Formulario Dinámico -->
                         <div class="form-section" id="formSection" style="display: none;">
-                            <h3>2. Completa la Información</h3>
+                            <h3><i class="fas fa-edit"></i> Paso 3: Completa la Información</h3>
+
+                            <!-- Campos Opcionales -->
+                            <div id="optionalFieldsToggle" style="display: none; margin-bottom: 20px;">
+                                <div class="optional-fields-header">
+                                    <h4><i class="fas fa-plus-circle"></i> Campos Opcionales</h4>
+                                    <p class="text-muted">Activa los campos adicionales que necesites para esta orden</p>
+                                </div>
+                                <div id="optionalFieldsCheckboxes" class="optional-checkboxes">
+                                    <!-- Se llenará dinámicamente -->
+                                </div>
+                            </div>
+
                             <form id="ocForm">
                                 <div id="formFields"></div>
-                                
+
                                 <div class="form-actions">
                                     <button type="button" class="btn btn-secondary" id="clearForm">
-                                        <i class="fas fa-eraser"></i> Limpiar
+                                        <i class="fas fa-eraser"></i> Limpiar Formulario
+                                    </button>
+                                    <button type="button" class="btn btn-info" id="backBtn">
+                                        <i class="fas fa-arrow-left"></i> Cambiar Empresa/Tipo
                                     </button>
                                     <button type="button" class="btn btn-success" id="previewBtn">
                                         <i class="fas fa-eye"></i> Vista Previa

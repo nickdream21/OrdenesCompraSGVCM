@@ -1,0 +1,120 @@
+================================================================================
+RESUMEN DE CONFIGURACIÓN - SISTEMA DE ÓRDENES DE COMPRA
+================================================================================
+
+CONFIGURACIÓN ACTUAL:
+--------------------
+✅ Sistema configurado para respaldo automático en red
+✅ Equipo de respaldo: 192.168.0.171
+✅ Carpeta en respaldo: D:\OC_Respaldo
+✅ Conectividad de red: OK (ping funciona)
+✅ Carpeta creada en el equipo de respaldo
+
+
+PENDIENTE EN EL EQUIPO 192.168.0.171:
+-------------------------------------
+⚠️  COMPARTIR la carpeta D:\OC_Respaldo
+
+Pasos rápidos:
+1. Clic derecho en D:\OC_Respaldo → Propiedades
+2. Compartir → Uso compartido avanzado
+3. Marcar "Compartir esta carpeta"
+4. Nombre: OC_Respaldo
+5. Permisos → "Todos" → Control total ✓
+6. Seguridad → "Todos" → Modificar ✓
+
+
+PARA VERIFICAR QUE FUNCIONA:
+---------------------------
+Desde ESTE equipo (servidor), ejecuta:
+
+    verificar_conexion.bat
+
+Este script te dirá si todo está configurado correctamente.
+
+
+PARA INICIAR EL SISTEMA:
+------------------------
+Una vez que el script de verificación diga "TODO CONFIGURADO CORRECTAMENTE":
+
+    npm start
+
+Luego abre el navegador en:
+
+    http://localhost:3000
+
+
+CÓMO FUNCIONA EL RESPALDO:
+--------------------------
+Cuando generas un PDF:
+
+1. Se guarda LOCAL en:
+   C:\Users\NICK\Downloads\oc-web-system\oc-web-system\generated\
+
+2. Se guarda AUTOMÁTICAMENTE en red:
+   \\192.168.0.171\OC_Respaldo\empresa\
+
+3. El usuario descarga el PDF en su navegador
+
+
+ORGANIZACIÓN DE ARCHIVOS:
+-------------------------
+Los PDFs se organizan por empresa automáticamente:
+
+D:\OC_Respaldo\
+├── viviana\
+│   ├── OC_001.pdf
+│   └── OC_002.pdf
+└── camafra\
+    ├── OC_050.pdf
+    └── OC_051.pdf
+
+
+ARCHIVOS DE AYUDA:
+-----------------
+- verificar_conexion.bat         → Script para verificar la configuración
+- INSTRUCCIONES_TU_RED.md        → Guía detallada paso a paso
+- CONFIGURACION_RED.md           → Documentación completa
+- server/config.js               → Archivo de configuración del sistema
+
+
+VERIFICACIÓN MANUAL:
+-------------------
+Desde CMD en ESTE equipo:
+
+# Probar conectividad
+ping 192.168.0.171
+
+# Ver carpeta compartida
+dir \\192.168.0.171\OC_Respaldo
+
+# Probar escritura
+echo test > \\192.168.0.171\OC_Respaldo\test.txt
+
+# Limpiar
+del \\192.168.0.171\OC_Respaldo\test.txt
+
+
+LOGS DEL SERVIDOR:
+-----------------
+Cuando el sistema funcione correctamente, verás en la consola:
+
+📄 PDF guardado localmente en: C:\...\generated\OC_XXX.pdf
+✅ PDF guardado en carpeta compartida: \\192.168.0.171\OC_Respaldo\viviana\OC_XXX.pdf
+
+
+SI ALGO FALLA:
+-------------
+- El PDF LOCAL siempre se guarda (el sistema NO se detiene)
+- Si falla el respaldo en red, verás un mensaje de advertencia en consola
+- El usuario NO verá ningún error, descargará el PDF normalmente
+
+
+CONTACTO:
+--------
+Revisa los archivos de documentación o ejecuta verificar_conexion.bat
+
+================================================================================
+Última actualización: 2025-01-20
+Configurado para: 192.168.0.171 → D:\OC_Respaldo
+================================================================================

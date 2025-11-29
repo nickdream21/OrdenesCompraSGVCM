@@ -10,6 +10,7 @@ Sistema profesional para generar órdenes de compra en PDF con interfaz web mode
 - ✅ **Generación de PDFs** - PDFs de alta calidad con Puppeteer
 - ✅ **Editor de Templates** - Crea y edita templates directamente desde la web
 - ✅ **Historial de PDFs** - Gestiona y descarga PDFs generados previamente
+- ✅ **Respaldo Automático en Red** - Guarda PDFs local + carpeta compartida en red
 - ✅ **100% Local** - Funciona completamente en tu máquina
 
 ## 📋 Requisitos Previos
@@ -56,6 +57,78 @@ Esto instalará:
 - EJS (motor de templates)
 - Body-parser (procesamiento de datos)
 - Moment (manejo de fechas)
+
+## ⚙️ Configuración de Respaldo Automático en Red
+
+El sistema incluye **guardado automático dual**: cada PDF se guarda localmente en el servidor Y en una carpeta compartida en red como respaldo.
+
+**Escenarios soportados:**
+1. **Servidor + Equipo de Respaldo Separado** (recomendado) - Ver `CONFIGURACION_RAPIDA.md`
+2. **Servidor con carpeta compartida local** - Configuración simple
+
+---
+
+### Configuración Rápida
+
+Edita el archivo `server/config.js` con la ruta de tu carpeta de respaldo:
+
+```javascript
+module.exports = {
+    PORT: 3000,
+
+    // IP del equipo de respaldo (diferente al servidor)
+    SHARED_FOLDER: '\\\\192.168.1.50\\OC_Respaldo',  // ⬅️ AJUSTA ESTA IP
+
+    USE_COMPANY_SUBFOLDERS: true,  // Crea subcarpetas por empresa
+    USE_DATE_SUBFOLDERS: false     // Crea subcarpetas por año/mes
+};
+```
+
+**Ejemplos de rutas válidas:**
+
+```javascript
+// Equipo de respaldo separado (RECOMENDADO)
+SHARED_FOLDER: '\\\\192.168.1.50\\OC_Respaldo'
+
+// Carpeta local en el mismo servidor
+SHARED_FOLDER: 'C:\\Respaldos\\OC'
+
+// Servidor de red por nombre
+SHARED_FOLDER: '\\\\SERVIDOR-BACKUP\\OC'
+
+// Desactivar respaldo en red
+SHARED_FOLDER: null
+```
+
+**Documentación completa:**
+- **Configuración paso a paso**: Ver `CONFIGURACION_RAPIDA.md`
+- **Guía detallada con solución de problemas**: Ver `CONFIGURACION_RED.md`
+
+### Cómo Funciona el Respaldo Dual
+
+Cuando generas un PDF:
+
+1. Se guarda **localmente** en el servidor: `generated/OC_XXX.pdf`
+2. Se guarda **automáticamente** en la carpeta compartida: `\\IP\carpeta\empresa\OC_XXX.pdf`
+3. El usuario **descarga** el PDF en su navegador
+
+**Ventajas:**
+- Si falla el respaldo en red, el PDF local se mantiene
+- Copias automáticas en otro equipo para seguridad
+- Organización automática por empresa/fecha
+
+### Verificar que Funciona
+
+Después de generar un PDF, la consola mostrará:
+
+```
+📄 PDF guardado localmente en: C:\...\generated\OC_000190.pdf
+✅ PDF guardado en carpeta compartida: \\192.168.1.50\OC_Respaldo\viviana\OC_000190.pdf
+```
+
+Si ves ambos mensajes: **el respaldo funciona correctamente**.
+
+**El usuario NO verá ninguna notificación** - el guardado en red es completamente transparente.
 
 ## 🚀 Uso
 

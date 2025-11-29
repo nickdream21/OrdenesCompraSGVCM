@@ -1,0 +1,116 @@
+================================================================================
+                    PASOS FINALES - SOLUCIÓN FIRMA SMB
+================================================================================
+
+EL PROBLEMA IDENTIFICADO:
+-------------------------
+❌ Error: "No puedes acceder a esta carpeta compartida porque el equipo está
+         configurado para requerir la firma SMB"
+
+✅ Causa: Conflicto de políticas de seguridad SMB entre los dos equipos
+
+
+SOLUCIÓN MÁS RÁPIDA (5 minutos):
+---------------------------------
+
+PASO 1: EN EL EQUIPO 192.168.0.171 (PRACTICANTES-PC)
+----------------------------------------------------
+
+Opción A - Automática (RECOMENDADO):
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. Copia el archivo "EJECUTAR_EN_EQUIPO_171.bat" a una USB
+2. Llévalo al equipo 192.168.0.171
+3. Clic derecho en el archivo → "Ejecutar como administrador"
+4. Sigue las instrucciones
+5. Reinicia el equipo cuando termine
+
+
+Opción B - Manual (si prefieres):
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. Abre PowerShell como Administrador
+2. Ejecuta este comando:
+
+   Set-SmbServerConfiguration -RequireSecuritySignature $False -Force
+
+3. Reinicia el equipo
+
+
+PASO 2: EN ESTE EQUIPO (servidor)
+----------------------------------
+
+Después de que el equipo 192.168.0.171 se reinicie:
+
+1. Abre CMD
+
+2. Prueba el acceso:
+
+   dir \\192.168.0.171\OC_Respaldo
+
+3. Si funciona, reinicia el servidor Node.js:
+
+   npm start
+
+4. Genera un PDF de prueba
+
+5. Deberías ver en la consola:
+
+   ✅ PDF guardado en carpeta compartida: \\192.168.0.171\OC_Respaldo\viviana\OC_XXX.pdf
+
+
+ALTERNATIVA SIN REINICIAR (Si tienes prisa):
+---------------------------------------------
+
+MAPEAR COMO UNIDAD Z:
+
+1. En ESTE equipo, abre CMD como Administrador
+
+2. Ejecuta:
+
+   net use Z: \\192.168.0.171\OC_Respaldo /persistent:yes
+
+3. Edita server\config.js:
+
+   Cambia:  SHARED_FOLDER: '\\\\192.168.0.171\\OC_Respaldo',
+   Por:     SHARED_FOLDER: 'Z:\\',
+
+4. Reinicia: npm start
+
+
+VERIFICACIÓN FINAL:
+-------------------
+
+Cuando todo funcione, al generar un PDF verás:
+
+📄 PDF guardado localmente en: C:\...\generated\OC_000601.pdf
+✅ PDF guardado en carpeta compartida: \\192.168.0.171\OC_Respaldo\viviana\OC_000601.pdf
+
+(Sin el símbolo ⚠️)
+
+
+ARCHIVOS DE AYUDA:
+------------------
+
+✓ EJECUTAR_EN_EQUIPO_171.bat    → Script automático para el equipo 192.168.0.171
+✓ SOLUCION_FIRMA_SMB.md          → Guía completa con todas las opciones
+✓ PASOS_FINALES.txt              → Este archivo (resumen rápido)
+
+
+RESUMEN:
+--------
+
+1. El problema es firma SMB
+2. Copia EJECUTAR_EN_EQUIPO_171.bat al equipo 192.168.0.171
+3. Ejecuta como Administrador
+4. Reinicia ese equipo
+5. Prueba: dir \\192.168.0.171\OC_Respaldo
+6. Reinicia: npm start
+7. ¡Listo!
+
+
+TIEMPO ESTIMADO: 5 minutos
+DIFICULTAD: Fácil (script automático)
+
+
+================================================================================
+           ¡CASI ESTÁ! Solo falta ejecutar el script y reiniciar
+================================================================================

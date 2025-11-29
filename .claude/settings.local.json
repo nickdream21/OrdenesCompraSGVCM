@@ -4,7 +4,22 @@
       "Bash(dir)",
       "Bash(git init:*)",
       "Bash(git remote add:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nImplementación inicial del Sistema Web de Órdenes de Compra\n\n- Servidor Express con generación de PDFs usando Puppeteer\n- Interfaz web moderna con múltiples pestañas\n- Sistema de templates personalizables con EJS\n- Editor de templates en la aplicación\n- Historial de PDFs generados\n- Templates predeterminados para órdenes locales e importación\n- Documentación completa en README.md\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git config:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(del templatesorden_importacion.ejs templatesorden_local_igv.ejs)",
+      "Bash(npm start)",
+      "Bash(taskkill:*)",
+      "Bash(move \"LOGO SGV NEW 2025@4x.png\" \"public/images/logo-viviana.png\")",
+      "Bash(move \"Logo Camafra.png\" \"public/images/logo-camafra.png\")",
+      "Bash(ping:*)",
+      "Bash(dir:*)",
+      "Bash(cmd /c \"dir \\192.168.0.171\\OC_Respaldo\")",
+      "Bash(cmd /c \"verificar_conexion.bat\")",
+      "Bash(net view:*)",
+      "Bash(cmd /c \"net use\")"
     ],
     "deny": [],
     "ask": []

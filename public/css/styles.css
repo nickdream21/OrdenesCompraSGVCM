@@ -593,6 +593,251 @@ textarea.form-control {
     margin-bottom: 1rem;
 }
 
+/* ==================== EMPRESA SELECTOR ==================== */
+.empresa-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    margin-top: 1.5rem;
+}
+
+.empresa-card {
+    border: 3px solid var(--border-color);
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.empresa-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.15);
+    transform: translateY(-8px);
+}
+
+.empresa-card.selected {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.2);
+}
+
+.empresa-icon {
+    font-size: 4rem;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+}
+
+.empresa-card h4 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.empresa-card p {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+.empresa-badge {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background-color: #e0e7ff;
+    color: var(--primary-color);
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+/* ==================== TIPO OC SELECTOR ==================== */
+.tipo-oc-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.tipo-oc-card {
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: white;
+    position: relative;
+}
+
+.tipo-oc-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-4px);
+}
+
+.tipo-oc-card.selected {
+    border-color: var(--success-color);
+    background-color: #f0fdf4;
+}
+
+.tipo-oc-card h4 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tipo-oc-card p {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+}
+
+.tipo-oc-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background-color: #fef3c7;
+    color: #92400e;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* ==================== OPTIONAL FIELDS ==================== */
+.optional-fields-header {
+    margin-bottom: 1rem;
+}
+
+.optional-fields-header h4 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.text-muted {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.optional-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    padding: 1.5rem;
+    background-color: #f8fafc;
+    border-radius: 12px;
+    border: 2px dashed var(--border-color);
+}
+
+.optional-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.optional-checkbox-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-sm);
+}
+
+.optional-checkbox-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.optional-checkbox-item label {
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--text-primary);
+    flex: 1;
+}
+
+/* ==================== ARRAY FIELDS ==================== */
+.array-field {
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    background-color: #f8fafc;
+}
+
+.array-field-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.array-field-header h4 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.array-item {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.array-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.array-item-title {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.btn-info {
+    background-color: #0ea5e9;
+    color: white;
+}
+
+.btn-info:hover:not(:disabled) {
+    background-color: #0284c7;
+}
+
+/* ==================== CONDITIONAL FIELDS ==================== */
+.conditional-field {
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+        overflow: hidden;
+    }
+    to {
+        opacity: 1;
+        max-height: 500px;
+    }
+}
+
 /* ==================== RESPONSIVE ==================== */
 @media (max-width: 768px) {
     .header-content h1 {
@@ -618,7 +863,13 @@ textarea.form-control {
     }
 
     .template-selector,
-    .templates-grid {
+    .templates-grid,
+    .empresa-selector,
+    .tipo-oc-selector {
+        grid-template-columns: 1fr;
+    }
+
+    .optional-checkboxes {
         grid-template-columns: 1fr;
     }
 }
