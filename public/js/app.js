@@ -1,613 +1,432 @@
-// ========================================
-// SISTEMA DE ÓRDENES DE COMPRA - APP.JS
-// ========================================
+// ============================================================
+// SISTEMA DE ÓRDENES DE COMPRA - APP PRINCIPAL (cliente)
+// ============================================================
 
-// Estado global de la aplicación
 const appState = {
     selectedEmpresa: null,
     selectedTemplate: null,
     selectedTemplateConfig: null,
-    allTemplates: [],
-    optionalFieldsState: {}
+    optionalFieldsState: {},
+    obras: [],
+    proveedores: []
 };
 
-// ========================================
-// INICIALIZACIÓN
-// ========================================
-document.addEventListener('DOMContentLoaded', () => {
-    initializeTabs();
-    initializeEmpresaSelector();
-    initializeBackButton();
-    initializeFormHandlers();
-    loadTemplates();
-    loadHistory();
-    initializeTemplateEditor();
+// ------------------------------------------------------------
+// INICIALIZACIÓN + GUARD DE SESIÓN
+// ------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', async () => {
+    initLogin();
+    initNav();
+    initEmpresaSelector();
+    initFormHandlers();
+
+    const session = await sbGetSession();
+    if (session) showApp();
+    else showLogin();
+
+    // Reaccionar a cambios de sesión (logout/expiración)
+    SB.auth.onAuthStateChange((_event, sess) => {
+        if (sess) showApp(); else showLogin();
+    });
 });
 
-// ========================================
-// GESTIÓN DE TABS
-// ========================================
-function initializeTabs() {
-    const tabBtns = document.querySelectorAll('.tab-btn');
+function showLogin() {
+    document.getElementById('loginView').style.display = 'flex';
+    document.getElementById('appView').style.display = 'none';
+}
 
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const targetTab = btn.dataset.tab;
+function showApp() {
+    document.getElementById('loginView').style.display = 'none';
+    document.getElementById('appView').style.display = 'block';
+    renderEmpresas();
+}
 
-            // Actualizar botones
-            tabBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+// ------------------------------------------------------------
+// LOGIN COMPARTIDO
+// ------------------------------------------------------------
+function initLogin() {
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        const btn = document.getElementById('loginBtn');
+        const errEl = document.getElementById('loginError');
+        errEl.textContent = '';
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ingresando...';
+        try {
+            await sbLogin(email, password);
+            showApp();
+        } catch (err) {
+            errEl.textContent = 'Correo o contraseña incorrectos.';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-right-to-bracket"></i> Ingresar';
+        }
+    });
 
-            // Actualizar contenido
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(targetTab).classList.add('active');
-
-            // Cargar datos según el tab
-            if (targetTab === 'history') {
-                loadHistory();
-            } else if (targetTab === 'templates') {
-                loadTemplatesManagement();
-            }
-        });
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await sbLogout();
+        showLogin();
     });
 }
 
-// ========================================
-// SELECTOR DE EMPRESA
-// ========================================
-function initializeEmpresaSelector() {
-    const empresaCards = document.querySelectorAll('.empresa-card');
-
-    empresaCards.forEach(card => {
-        card.addEventListener('click', () => {
-            const empresa = card.dataset.empresa;
-            selectEmpresa(empresa);
-        });
+// ------------------------------------------------------------
+// NAVEGACIÓN ENTRE SECCIONES
+// ------------------------------------------------------------
+function initNav() {
+    document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.addEventListener('click', () => switchView(btn.dataset.view));
     });
 }
 
-function selectEmpresa(empresa) {
+function switchView(view) {
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(`view-${view}`).classList.add('active');
+
+    if (view === 'obras' && window.renderObras) renderObras();
+    if (view === 'proveedores' && window.renderProveedores) renderProveedores();
+    if (view === 'historial' && window.renderHistorial) renderHistorial();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ------------------------------------------------------------
+// PASO 1: EMPRESA
+// ------------------------------------------------------------
+function renderEmpresas() {
+    const cont = document.getElementById('empresaSelector');
+    if (cont.dataset.rendered) return;
+    cont.innerHTML = window.OC_EMPRESAS.map(e => `
+        <button type="button" class="empresa-card" data-empresa="${e.codigo}">
+            <i class="fas ${e.icon}" style="color:${e.color}"></i>
+            <h4>${e.nombre}</h4>
+            <p>${e.tipo}</p>
+            <span class="badge">RUC: ${e.ruc}</span>
+        </button>
+    `).join('');
+    cont.dataset.rendered = '1';
+    cont.querySelectorAll('.empresa-card').forEach(card => {
+        card.addEventListener('click', () => selectEmpresa(card.dataset.empresa));
+    });
+}
+
+function initEmpresaSelector() { /* listeners se agregan en renderEmpresas */ }
+
+async function selectEmpresa(empresa) {
     appState.selectedEmpresa = empresa;
+    document.querySelectorAll('.empresa-card').forEach(c => c.classList.toggle('selected', c.dataset.empresa === empresa));
 
-    // Actualizar UI - marcar empresa seleccionada
-    document.querySelectorAll('.empresa-card').forEach(card => {
-        card.classList.remove('selected');
-    });
-    document.querySelector(`.empresa-card[data-empresa="${empresa}"]`).classList.add('selected');
+    // Precargar obras (por empresa) y proveedores (globales)
+    try {
+        [appState.obras, appState.proveedores] = await Promise.all([
+            sbLoadObras(empresa),
+            sbLoadProveedores()
+        ]);
+    } catch (err) {
+        showToast('Error cargando datos: ' + err.message, 'error');
+    }
 
-    // Mostrar sección de tipo de OC
+    renderTiposOC(empresa);
     document.getElementById('tipoOCSection').style.display = 'block';
-
-    // Cargar tipos de OC para la empresa seleccionada
-    loadTiposOC(empresa);
-
-    // Ocultar formulario si estaba visible
     document.getElementById('formSection').style.display = 'none';
-
-    // Scroll suave a la siguiente sección
     document.getElementById('tipoOCSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ========================================
-// CARGAR TIPOS DE OC
-// ========================================
-function loadTiposOC(empresa) {
-    const tipoOCSelector = document.getElementById('tipoOCSelector');
-
-    // Filtrar templates por empresa
-    const templatesEmpresa = appState.allTemplates.filter(t => t.config.empresa === empresa);
-
-    if (templatesEmpresa.length === 0) {
-        tipoOCSelector.innerHTML = `
-            <div class="loading">
-                <p>No hay templates disponibles para esta empresa</p>
-            </div>
-        `;
-        return;
-    }
-
-    // Generar cards de tipos de OC
-    tipoOCSelector.innerHTML = templatesEmpresa.map(template => {
-        const moneda = template.name.includes('importacion') ? 'USD' : 'S/.';
-        const igv = template.name.includes('importacion') ? 'Sin IGV' : 'Con IGV';
-
-        return `
-            <div class="tipo-oc-card" data-template="${template.name}">
-                <h4>
-                    <i class="fas fa-file-invoice"></i>
-                    ${template.config.displayName}
-                </h4>
-                <p>${template.config.description}</p>
-                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                    <span class="tipo-oc-badge">${moneda}</span>
-                    <span class="tipo-oc-badge">${igv}</span>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    // Añadir event listeners
-    document.querySelectorAll('.tipo-oc-card').forEach(card => {
-        card.addEventListener('click', () => {
-            const templateName = card.dataset.template;
-            selectTipoOC(templateName);
-        });
+// ------------------------------------------------------------
+// PASO 2: TIPO DE OC
+// ------------------------------------------------------------
+function renderTiposOC(empresa) {
+    const cont = document.getElementById('tipoOCSelector');
+    const tipos = Object.values(window.OC_TEMPLATES).filter(t => t.empresa === empresa);
+    cont.innerHTML = tipos.map(t => `
+        <button type="button" class="tipo-oc-card" data-template="${t.name}">
+            <h4><i class="fas fa-file-invoice"></i> ${t.displayName}</h4>
+            <p>${t.description}</p>
+            <span class="badge">${t.moneda}</span>
+        </button>
+    `).join('');
+    cont.querySelectorAll('.tipo-oc-card').forEach(card => {
+        card.addEventListener('click', () => selectTipoOC(card.dataset.template));
     });
 }
 
-// ========================================
-// SELECCIONAR TIPO DE OC
-// ========================================
 function selectTipoOC(templateName) {
     appState.selectedTemplate = templateName;
-
-    // Buscar configuración del template
-    const template = appState.allTemplates.find(t => t.name === templateName);
-    if (!template) {
-        showToast('Template no encontrado', 'error');
-        return;
-    }
-
-    appState.selectedTemplateConfig = template.config;
-
-    // Actualizar UI
-    document.querySelectorAll('.tipo-oc-card').forEach(card => {
-        card.classList.remove('selected');
-    });
-    document.querySelector(`.tipo-oc-card[data-template="${templateName}"]`).classList.add('selected');
-
-    // Mostrar formulario
+    appState.selectedTemplateConfig = window.OC_TEMPLATES[templateName];
+    document.querySelectorAll('.tipo-oc-card').forEach(c => c.classList.toggle('selected', c.dataset.template === templateName));
     document.getElementById('formSection').style.display = 'block';
-
-    // Generar formulario
-    generateForm(template.config);
-
-    // Scroll suave
-    setTimeout(() => {
-        document.getElementById('formSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
+    generateForm(appState.selectedTemplateConfig);
+    setTimeout(() => document.getElementById('formSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 }
 
-// ========================================
-// GENERAR FORMULARIO DINÁMICO
-// ========================================
+// ------------------------------------------------------------
+// FORMULARIO DINÁMICO
+// ------------------------------------------------------------
 function generateForm(config) {
-    const formFields = document.getElementById('formFields');
+    appState.optionalFieldsState = {};
     const optionalToggle = document.getElementById('optionalFieldsToggle');
     const optionalCheckboxes = document.getElementById('optionalFieldsCheckboxes');
 
-    // Resetear estado de campos opcionales
-    appState.optionalFieldsState = {};
-
-    // Separar campos: normales (obligatorios y opcionales), de sección "opcionales" y condicionales
     const normalFields = config.fields.filter(f => !f.conditional && f.section !== 'opcionales');
     const optionalSectionFields = config.fields.filter(f => f.section === 'opcionales');
     const conditionalFields = config.fields.filter(f => f.conditional);
 
-    // Si hay campos de sección "opcionales", mostrar los checkboxes
     if (optionalSectionFields.length > 0) {
         optionalToggle.style.display = 'block';
-        optionalCheckboxes.innerHTML = optionalSectionFields.map(field => `
-            <div class="optional-checkbox-item">
-                <input type="checkbox" id="opt_${field.name}" data-field="${field.name}">
-                <label for="opt_${field.name}">${field.label}</label>
-            </div>
+        optionalCheckboxes.innerHTML = optionalSectionFields.map(f => `
+            <label class="optional-checkbox-item">
+                <input type="checkbox" id="opt_${f.name}" data-field="${f.name}">
+                <span>${f.label}</span>
+            </label>
         `).join('');
-
-        // Event listeners para checkboxes opcionales
-        optionalSectionFields.forEach(field => {
-            const checkbox = document.getElementById(`opt_${field.name}`);
-            checkbox.addEventListener('change', (e) => {
-                appState.optionalFieldsState[field.name] = e.target.checked;
-                generateFormFields(normalFields, optionalSectionFields, conditionalFields);
+        optionalSectionFields.forEach(f => {
+            document.getElementById(`opt_${f.name}`).addEventListener('change', (e) => {
+                appState.optionalFieldsState[f.name] = e.target.checked;
+                renderFields(normalFields, optionalSectionFields, conditionalFields);
             });
         });
     } else {
         optionalToggle.style.display = 'none';
     }
 
-    // Generar campos del formulario
-    generateFormFields(normalFields, optionalSectionFields, conditionalFields);
+    renderFields(normalFields, optionalSectionFields, conditionalFields);
 }
 
-function generateFormFields(normalFields, optionalSectionFields, conditionalFields) {
-    const formFields = document.getElementById('formFields');
-
-    // Campos que se mostrarán: todos los campos normales (obligatorios y opcionales)
+function renderFields(normalFields, optionalSectionFields, conditionalFields) {
     let fieldsToShow = [...normalFields];
-
-    // Añadir campos condicionales de los opcionales activados
-    // NO añadir los campos checkbox de la sección opcionales, solo sus condicionales
     optionalSectionFields.forEach(optField => {
         if (appState.optionalFieldsState[optField.name]) {
-            // Solo añadir los campos condicionales, no el checkbox en sí
-            const relatedConditionals = conditionalFields.filter(f => f.conditional === optField.name);
-            fieldsToShow.push(...relatedConditionals);
+            fieldsToShow.push(...conditionalFields.filter(f => f.conditional === optField.name));
         }
     });
 
-    // Generar HTML de los campos
-    formFields.innerHTML = fieldsToShow.map(field => generateFieldHTML(field)).join('');
+    document.getElementById('formFields').innerHTML = fieldsToShow.map(generateFieldHTML).join('');
 
-    // Inicializar event listeners para arrays
-    initializeArrayFields();
+    // Valor por defecto: fecha de hoy
+    const fecha = document.getElementById('fecha');
+    if (fecha && !fecha.value) fecha.value = new Date().toISOString().slice(0, 10);
+
+    // Poblar selects especiales y enganchar autocompletado
+    populateObraSelect();
+    populateProveedorSelect();
+    initArrayFields();
 }
 
 function generateFieldHTML(field) {
-    if (field.type === 'array') {
-        return generateArrayFieldHTML(field);
+    if (field.type === 'array') return generateArrayFieldHTML(field);
+
+    const reqClass = field.required ? 'required' : '';
+    const reqAttr = field.required ? 'required' : '';
+    let input = '';
+
+    // Campo OBRA -> select desde la BD
+    if (field.source === 'obra') {
+        return `
+            <div class="form-group">
+                <label class="form-label ${reqClass}" for="obra">${field.label}</label>
+                <select class="form-control" id="obra" name="obra" ${reqAttr}>
+                    <option value="">Seleccione una obra...</option>
+                </select>
+                <textarea class="form-control" id="obra_otra" name="obra_otra" rows="2"
+                    placeholder="Escribe la obra" style="display:none; margin-top:8px;"></textarea>
+            </div>`;
     }
 
-    const requiredClass = field.required ? 'required' : '';
-    const requiredAttr = field.required ? 'required' : '';
-
-    let inputHTML = '';
+    // Campo PROVEEDOR -> select desde la BD (autocompleta los demás)
+    if (field.source === 'proveedor') {
+        return `
+            <div class="form-group">
+                <label class="form-label ${reqClass}" for="proveedor_razon_social">${field.label}</label>
+                <select class="form-control" id="proveedor_razon_social" name="proveedor_razon_social" ${reqAttr}>
+                    <option value="">Seleccione un proveedor...</option>
+                </select>
+            </div>`;
+    }
 
     switch (field.type) {
         case 'text':
         case 'email':
         case 'date':
-            inputHTML = `<input
-                type="${field.type}"
-                class="form-control"
-                name="${field.name}"
-                id="${field.name}"
-                placeholder="${field.placeholder || ''}"
-                ${requiredAttr}>`;
+            input = `<input type="${field.type}" class="form-control" name="${field.name}" id="${field.name}" placeholder="${field.placeholder || ''}" ${reqAttr}>`;
             break;
-
         case 'number':
-            inputHTML = `<input
-                type="number"
-                class="form-control"
-                name="${field.name}"
-                id="${field.name}"
-                step="${field.step || '1'}"
-                placeholder="${field.placeholder || ''}"
-                ${requiredAttr}>`;
+            input = `<input type="number" class="form-control" name="${field.name}" id="${field.name}" step="${field.step || '1'}" min="0" placeholder="${field.placeholder || ''}" ${reqAttr}>`;
             break;
-
         case 'textarea':
-            inputHTML = `<textarea
-                class="form-control"
-                name="${field.name}"
-                id="${field.name}"
-                rows="${field.rows || 3}"
-                placeholder="${field.placeholder || ''}"
-                ${requiredAttr}></textarea>`;
+            input = `<textarea class="form-control" name="${field.name}" id="${field.name}" rows="${field.rows || 3}" placeholder="${field.placeholder || ''}" ${reqAttr}></textarea>`;
             break;
-
         case 'select':
-            inputHTML = `<select class="form-control" name="${field.name}" id="${field.name}" ${requiredAttr}>
+            input = `<select class="form-control" name="${field.name}" id="${field.name}" ${reqAttr}>
                 <option value="">Seleccione...</option>
-                ${field.options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+                ${(field.options || []).map(o => `<option value="${o}">${o}</option>`).join('')}
             </select>`;
             break;
-
         case 'checkbox':
-            inputHTML = `<input type="checkbox" name="${field.name}" id="${field.name}">`;
+            input = `<input type="checkbox" name="${field.name}" id="${field.name}">`;
             break;
     }
 
     return `
         <div class="form-group">
-            <label class="form-label ${requiredClass}" for="${field.name}">${field.label}</label>
-            ${inputHTML}
-        </div>
-    `;
+            <label class="form-label ${reqClass}" for="${field.name}">${field.label}</label>
+            ${input}
+        </div>`;
 }
 
+// ---- Select de OBRA ----
+function populateObraSelect() {
+    const sel = document.getElementById('obra');
+    if (!sel) return;
+    const obras = appState.obras || [];
+    sel.innerHTML = `<option value="">Seleccione una obra...</option>`
+        + obras.map(o => `<option value="${escapeHtml(o.nombre)}">${escapeHtml(o.nombre)}</option>`).join('')
+        + `<option value="__otra__">✏️ Otra (escribir)...</option>`;
+
+    sel.addEventListener('change', () => {
+        const otra = document.getElementById('obra_otra');
+        if (sel.value === '__otra__') { otra.style.display = 'block'; otra.required = true; }
+        else { otra.style.display = 'none'; otra.required = false; otra.value = ''; }
+    });
+}
+
+// ---- Select de PROVEEDOR (con autocompletado) ----
+function populateProveedorSelect() {
+    const sel = document.getElementById('proveedor_razon_social');
+    if (!sel) return;
+    const provs = appState.proveedores || [];
+    sel.innerHTML = `<option value="">Seleccione un proveedor...</option>`
+        + provs.map(p => `<option value="${escapeHtml(p.razon_social)}" data-id="${p.id}">${escapeHtml(p.razon_social)}</option>`).join('')
+        + `<option value="__nuevo__">➕ Nuevo proveedor...</option>`;
+
+    sel.addEventListener('change', () => {
+        if (sel.value === '__nuevo__') {
+            sel.value = '';
+            if (window.openNuevoProveedor) {
+                window.openNuevoProveedor(async (nuevo) => {
+                    appState.proveedores = await sbLoadProveedores(true);
+                    populateProveedorSelect();
+                    sel.value = nuevo.razon_social;
+                    applyProveedorAutofill(nuevo);
+                });
+            }
+            return;
+        }
+        const opt = sel.options[sel.selectedIndex];
+        const id = opt && opt.dataset ? opt.dataset.id : null;
+        const prov = (appState.proveedores || []).find(p => String(p.id) === String(id));
+        if (prov) applyProveedorAutofill(prov);
+    });
+}
+
+function applyProveedorAutofill(prov) {
+    Object.entries(window.PROVEEDOR_AUTOFILL).forEach(([fieldName, col]) => {
+        const el = document.getElementById(fieldName);
+        if (el && prov[col] != null) el.value = prov[col];
+    });
+}
+
+// ------------------------------------------------------------
+// CAMPOS ARRAY (items)
+// ------------------------------------------------------------
 function generateArrayFieldHTML(field) {
     return `
         <div class="array-field" data-array-name="${field.name}">
             <div class="array-field-header">
                 <h4><i class="fas fa-list"></i> ${field.label}</h4>
-                <button type="button" class="btn btn-primary btn-sm" onclick="addArrayItem('${field.name}')">
-                    <i class="fas fa-plus"></i> Agregar ${field.itemLabel || 'Item'}
+                <button type="button" class="btn btn-sm btn-primary" onclick="addArrayItem('${field.name}')">
+                    <i class="fas fa-plus"></i> Agregar
                 </button>
             </div>
-            <div class="array-items" id="array_${field.name}">
-                <!-- Items se generarán aquí -->
-            </div>
-        </div>
-    `;
+            <div class="array-items" id="array_${field.name}"></div>
+        </div>`;
 }
 
-// ========================================
-// GESTIÓN DE CAMPOS ARRAY
-// ========================================
-function initializeArrayFields() {
-    const arrayFields = appState.selectedTemplateConfig.fields.filter(f => f.type === 'array');
-
-    arrayFields.forEach(field => {
-        // Añadir el primer item por defecto
-        addArrayItem(field.name);
+function initArrayFields() {
+    (appState.selectedTemplateConfig.fields.filter(f => f.type === 'array')).forEach(f => {
+        const cont = document.getElementById(`array_${f.name}`);
+        if (cont && cont.children.length === 0) addArrayItem(f.name);
     });
 }
 
 function addArrayItem(arrayName) {
-    const arrayField = appState.selectedTemplateConfig.fields.find(f => f.name === arrayName);
-    if (!arrayField) return;
-
+    const field = appState.selectedTemplateConfig.fields.find(f => f.name === arrayName);
+    if (!field) return;
     const container = document.getElementById(`array_${arrayName}`);
-    const itemIndex = container.children.length;
+    const index = container.children.length;
 
-    const itemHTML = `
-        <div class="array-item" data-index="${itemIndex}">
+    const subInputs = field.fields.map(sf => {
+        const reqAttr = sf.required ? 'required' : '';
+        const reqClass = sf.required ? 'required' : '';
+        let input;
+        if (sf.type === 'textarea') {
+            input = `<textarea class="form-control" data-sub="${sf.name}" rows="${sf.rows || 2}" placeholder="${sf.placeholder || ''}" ${reqAttr}></textarea>`;
+        } else if (sf.type === 'number') {
+            input = `<input type="number" class="form-control" data-sub="${sf.name}" step="${sf.step || '0.01'}" min="0" placeholder="${sf.placeholder || ''}" ${reqAttr}>`;
+        } else {
+            input = `<input type="${sf.type}" class="form-control" data-sub="${sf.name}" placeholder="${sf.placeholder || ''}" ${reqAttr}>`;
+        }
+        return `<div class="form-group"><label class="form-label ${reqClass}">${sf.label}</label>${input}</div>`;
+    }).join('');
+
+    container.insertAdjacentHTML('beforeend', `
+        <div class="array-item" data-index="${index}">
             <div class="array-item-header">
-                <span class="array-item-title">${arrayField.itemLabel || 'Item'} #${itemIndex + 1}</span>
-                <button type="button" class="btn btn-danger btn-sm" onclick="removeArrayItem('${arrayName}', ${itemIndex})">
-                    <i class="fas fa-trash"></i> Eliminar
+                <span class="array-item-title">Item #${index + 1}</span>
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeArrayItem('${arrayName}', this)">
+                    <i class="fas fa-trash"></i>
                 </button>
             </div>
-            <div class="form-row">
-                ${arrayField.fields.map(subField => {
-                    const requiredAttr = subField.required ? 'required' : '';
-                    const requiredClass = subField.required ? 'required' : '';
-
-                    let inputHTML = '';
-
-                    if (subField.type === 'textarea') {
-                        inputHTML = `<textarea
-                            class="form-control"
-                            name="${arrayName}[${itemIndex}][${subField.name}]"
-                            rows="${subField.rows || 2}"
-                            placeholder="${subField.placeholder || ''}"
-                            ${requiredAttr}></textarea>`;
-                    } else if (subField.type === 'number') {
-                        inputHTML = `<input
-                            type="number"
-                            class="form-control"
-                            name="${arrayName}[${itemIndex}][${subField.name}]"
-                            step="${subField.step || '0.01'}"
-                            placeholder="${subField.placeholder || ''}"
-                            ${requiredAttr}>`;
-                    } else {
-                        inputHTML = `<input
-                            type="${subField.type}"
-                            class="form-control"
-                            name="${arrayName}[${itemIndex}][${subField.name}]"
-                            placeholder="${subField.placeholder || ''}"
-                            ${requiredAttr}>`;
-                    }
-
-                    return `
-                        <div class="form-group">
-                            <label class="form-label ${requiredClass}">${subField.label}</label>
-                            ${inputHTML}
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-        </div>
-    `;
-
-    container.insertAdjacentHTML('beforeend', itemHTML);
+            <div class="form-row">${subInputs}</div>
+        </div>`);
 }
 
-function removeArrayItem(arrayName, index) {
+function removeArrayItem(arrayName, btn) {
     const container = document.getElementById(`array_${arrayName}`);
-    const items = container.querySelectorAll('.array-item');
-
-    if (items.length <= 1) {
+    if (container.querySelectorAll('.array-item').length <= 1) {
         showToast('Debe haber al menos un item', 'warning');
         return;
     }
-
-    items[index].remove();
-
-    // Renumerar items restantes
-    container.querySelectorAll('.array-item').forEach((item, newIndex) => {
-        item.dataset.index = newIndex;
-        item.querySelector('.array-item-title').textContent =
-            `${appState.selectedTemplateConfig.fields.find(f => f.name === arrayName).itemLabel || 'Item'} #${newIndex + 1}`;
+    btn.closest('.array-item').remove();
+    container.querySelectorAll('.array-item').forEach((item, i) => {
+        item.dataset.index = i;
+        item.querySelector('.array-item-title').textContent = `Item #${i + 1}`;
     });
 }
 
-// ========================================
-// BOTÓN "VOLVER"
-// ========================================
-function initializeBackButton() {
-    document.getElementById('backBtn').addEventListener('click', () => {
-        // Resetear selecciones
-        appState.selectedEmpresa = null;
-        appState.selectedTemplate = null;
-        appState.selectedTemplateConfig = null;
-
-        // Limpiar UI
-        document.querySelectorAll('.empresa-card').forEach(card => card.classList.remove('selected'));
-        document.querySelectorAll('.tipo-oc-card').forEach(card => card.classList.remove('selected'));
-
-        // Ocultar secciones
-        document.getElementById('tipoOCSection').style.display = 'none';
-        document.getElementById('formSection').style.display = 'none';
-
-        // Scroll al inicio
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-}
-
-// ========================================
-// HANDLERS DE FORMULARIO
-// ========================================
-function initializeFormHandlers() {
-    // Limpiar formulario
-    document.getElementById('clearForm').addEventListener('click', () => {
-        document.getElementById('ocForm').reset();
-
-        // Resetear arrays
-        const arrayFields = appState.selectedTemplateConfig?.fields.filter(f => f.type === 'array') || [];
-        arrayFields.forEach(field => {
-            const container = document.getElementById(`array_${field.name}`);
-            container.innerHTML = '';
-            addArrayItem(field.name);
-        });
-    });
-
-    // Generar PDF
-    document.getElementById('ocForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        await generatePDF();
-    });
-
-    // Vista previa
-    document.getElementById('previewBtn').addEventListener('click', async () => {
-        await previewPDF();
-    });
-}
-
-// ========================================
-// GENERAR PDF
-// ========================================
-async function generatePDF() {
-    const formData = collectFormData();
-
-    if (!formData) return;
-
-    const submitBtn = document.querySelector('#ocForm button[type="submit"]');
-    const originalText = submitBtn.innerHTML;
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando PDF...';
-
-    try {
-        const response = await fetch('/api/generate-pdf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                template: appState.selectedTemplate,
-                data: formData,
-                filename: `OC_${formData.numero_oc}.pdf`
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Error al generar el PDF');
-        }
-
-        // Verificar que la respuesta es un PDF
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/pdf')) {
-            throw new Error('La respuesta no es un PDF válido');
-        }
-
-        const blob = await response.blob();
-
-        // Verificar que el blob tiene contenido
-        if (blob.size === 0) {
-            throw new Error('El PDF generado está vacío');
-        }
-
-        console.log('PDF descargado, tamaño:', blob.size, 'bytes');
-
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `OC_${formData.numero_oc}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-
-        // Limpiar después de un breve delay
-        setTimeout(() => {
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-        }, 100);
-
-        showToast('PDF generado y descargado correctamente', 'success');
-
-        // Actualizar historial después de un pequeño delay
-        setTimeout(() => loadHistory(), 500);
-
-    } catch (error) {
-        console.error('Error completo:', error);
-        showToast('Error al generar el PDF: ' + error.message, 'error');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
-    }
-}
-
-// ========================================
-// VISTA PREVIA
-// ========================================
-async function previewPDF() {
-    const formData = collectFormData();
-
-    if (!formData) return;
-
-    try {
-        const response = await fetch('/api/generate-pdf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                template: appState.selectedTemplate,
-                data: formData,
-                filename: `preview_${Date.now()}.pdf`
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Error al generar la vista previa');
-        }
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-
-        const previewFrame = document.getElementById('previewFrame');
-        previewFrame.src = url;
-
-        document.getElementById('previewModal').classList.add('active');
-
-    } catch (error) {
-        console.error('Error:', error);
-        showToast('Error al generar la vista previa: ' + error.message, 'error');
-    }
-}
-
-// ========================================
-// RECOLECTAR DATOS DEL FORMULARIO
-// ========================================
+// ------------------------------------------------------------
+// RECOLECTAR + VALIDAR DATOS
+// ------------------------------------------------------------
 function collectFormData() {
-    const form = document.getElementById('ocForm');
-    const formData = new FormData(form);
+    const config = appState.selectedTemplateConfig;
     const data = {};
 
-    // Inicializar todos los campos del template con valores vacíos
-    appState.selectedTemplateConfig.fields.forEach(field => {
-        if (field.type !== 'array' && field.type !== 'checkbox') {
-            data[field.name] = '';
-        }
+    // Inicializa TODOS los campos para que la plantilla EJS nunca encuentre
+    // una variable indefinida (checkbox -> false; resto -> '').
+    config.fields.forEach(field => {
+        if (field.type === 'array') return;
+        if (field.type === 'checkbox') { data[field.name] = false; return; }
+        const el = document.getElementById(field.name);
+        data[field.name] = el ? el.value.trim() : '';
     });
 
-    // Procesar campos simples del formulario (sobrescribir con valores reales)
-    for (let [key, value] of formData.entries()) {
-        if (!key.includes('[')) {
-            data[key] = value;
-        }
+    // Obra "otra"
+    if (data.obra === '__otra__') {
+        const otra = document.getElementById('obra_otra');
+        data.obra = otra ? otra.value.trim() : '';
     }
 
-    // Añadir estados de checkboxes opcionales
-    Object.keys(appState.optionalFieldsState).forEach(key => {
-        data[key] = appState.optionalFieldsState[key];
-    });
+    // Checkboxes opcionales
+    Object.keys(appState.optionalFieldsState).forEach(k => { data[k] = appState.optionalFieldsState[k]; });
 
-    // Procesar campos array
-    const arrayFields = appState.selectedTemplateConfig.fields.filter(f => f.type === 'array');
-
-    arrayFields.forEach(arrayField => {
+    // Arrays
+    config.fields.filter(f => f.type === 'array').forEach(arrayField => {
         data[arrayField.name] = [];
-        const container = document.getElementById(`array_${arrayField.name}`);
-        const items = container.querySelectorAll('.array-item');
-
-        items.forEach(item => {
+        document.querySelectorAll(`#array_${arrayField.name} .array-item`).forEach(item => {
             const itemData = {};
-            arrayField.fields.forEach(subField => {
-                const input = item.querySelector(`[name*="[${subField.name}]"]`);
-                if (input) {
-                    itemData[subField.name] = input.value;
-                }
+            arrayField.fields.forEach(sf => {
+                const input = item.querySelector(`[data-sub="${sf.name}"]`);
+                itemData[sf.name] = input ? input.value.trim() : '';
             });
             data[arrayField.name].push(itemData);
         });
@@ -616,234 +435,151 @@ function collectFormData() {
     return data;
 }
 
-// ========================================
-// CARGAR TEMPLATES
-// ========================================
-async function loadTemplates() {
-    try {
-        const response = await fetch('/api/templates');
-        const templates = await response.json();
+const VALIDATORS = {
+    ruc: { test: v => /^\d{11}$/.test(v), msg: 'El RUC debe tener 11 dígitos.' },
+    dni: { test: v => /^\d{8}$/.test(v), msg: 'El DNI debe tener 8 dígitos.' },
+    email: { test: v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), msg: 'Correo electrónico inválido.' },
+    phone: { test: v => /^[\d\s+\-()]{6,}$/.test(v), msg: 'Teléfono inválido.' }
+};
 
-        appState.allTemplates = templates;
+function validateData(data) {
+    const config = appState.selectedTemplateConfig;
+    const errors = [];
 
-    } catch (error) {
-        console.error('Error al cargar templates:', error);
-        showToast('Error al cargar templates', 'error');
-    }
-}
-
-// ========================================
-// HISTORIAL DE PDFs
-// ========================================
-async function loadHistory() {
-    const tbody = document.querySelector('#historyTable tbody');
-    tbody.innerHTML = '<tr><td colspan="4" class="text-center"><div class="loading"><i class="fas fa-spinner fa-spin"></i> Cargando...</div></td></tr>';
-
-    try {
-        const response = await fetch('/api/generated');
-        const files = await response.json();
-
-        if (files.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center">No hay PDFs generados</td></tr>';
-            return;
+    config.fields.forEach(field => {
+        if (field.type === 'array' || field.type === 'checkbox') return;
+        const val = (data[field.name] || '').toString().trim();
+        if (field.required && !val) { errors.push(`Falta: ${field.label}`); return; }
+        if (val && field.validate && VALIDATORS[field.validate] && !VALIDATORS[field.validate].test(val)) {
+            errors.push(`${field.label}: ${VALIDATORS[field.validate].msg}`);
         }
-
-        tbody.innerHTML = files.map(file => `
-            <tr>
-                <td>${file.name}</td>
-                <td>${formatFileSize(file.size)}</td>
-                <td>${formatDate(file.date)}</td>
-                <td>
-                    <button class="btn btn-primary btn-sm" onclick="downloadPDF('${file.name}')">
-                        <i class="fas fa-download"></i> Descargar
-                    </button>
-                </td>
-            </tr>
-        `).join('');
-
-    } catch (error) {
-        console.error('Error:', error);
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center">Error al cargar el historial</td></tr>';
-    }
-}
-
-async function downloadPDF(filename) {
-    try {
-        const response = await fetch(`/api/download/${encodeURIComponent(filename)}`);
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-    } catch (error) {
-        console.error('Error:', error);
-        showToast('Error al descargar el archivo', 'error');
-    }
-}
-
-// ========================================
-// GESTIÓN DE TEMPLATES
-// ========================================
-async function loadTemplatesManagement() {
-    const grid = document.getElementById('templatesGrid');
-    grid.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>';
-
-    try {
-        const response = await fetch('/api/templates');
-        const templates = await response.json();
-
-        if (templates.length === 0) {
-            grid.innerHTML = '<p class="text-center">No hay templates disponibles</p>';
-            return;
-        }
-
-        grid.innerHTML = templates.map(template => `
-            <div class="template-item">
-                <h4>${template.config.displayName}</h4>
-                <p>${template.config.description}</p>
-                <div class="template-badge">${template.name}</div>
-                <div class="template-actions" style="margin-top: 1rem;">
-                    <button class="btn btn-secondary btn-sm" onclick="editTemplate('${template.name}')">
-                        <i class="fas fa-edit"></i> Editar
-                    </button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteTemplate('${template.name}')">
-                        <i class="fas fa-trash"></i> Eliminar
-                    </button>
-                </div>
-            </div>
-        `).join('');
-
-    } catch (error) {
-        console.error('Error:', error);
-        grid.innerHTML = '<p class="text-center">Error al cargar templates</p>';
-    }
-}
-
-// ========================================
-// EDITOR DE TEMPLATES
-// ========================================
-function initializeTemplateEditor() {
-    document.getElementById('saveTemplateBtn').addEventListener('click', saveTemplate);
-    document.getElementById('newTemplateBtn').addEventListener('click', () => {
-        document.querySelector('[data-tab="editor"]').click();
-        document.getElementById('templateName').value = '';
-        document.getElementById('templateEditor').value = '';
     });
+
+    // Items
+    const itemsField = config.fields.find(f => f.type === 'array');
+    if (itemsField) {
+        const items = data[itemsField.name] || [];
+        if (items.length === 0) errors.push('Agrega al menos un item.');
+        items.forEach((it, i) => {
+            const cant = parseFloat(it.cantidad);
+            const precio = parseFloat(it.precio_unitario);
+            if (!it.descripcion) errors.push(`Item #${i + 1}: falta la descripción.`);
+            if (!it.unidad) errors.push(`Item #${i + 1}: falta la unidad.`);
+            if (!(cant > 0)) errors.push(`Item #${i + 1}: la cantidad debe ser mayor a 0.`);
+            if (!(precio >= 0) || isNaN(precio)) errors.push(`Item #${i + 1}: el precio no es válido.`);
+        });
+    }
+
+    return errors;
 }
 
-async function saveTemplate() {
-    const name = document.getElementById('templateName').value.trim();
-    const content = document.getElementById('templateEditor').value.trim();
+// ------------------------------------------------------------
+// GENERAR PDF (vía función serverless) + DESCARGA
+// ------------------------------------------------------------
+function initFormHandlers() {
+    document.getElementById('clearForm').addEventListener('click', () => {
+        document.getElementById('ocForm').reset();
+        appState.selectedTemplateConfig.fields.filter(f => f.type === 'array').forEach(f => {
+            const c = document.getElementById(`array_${f.name}`);
+            if (c) { c.innerHTML = ''; addArrayItem(f.name); }
+        });
+        const fecha = document.getElementById('fecha');
+        if (fecha) fecha.value = new Date().toISOString().slice(0, 10);
+    });
 
-    if (!name || !content) {
-        showToast('Por favor completa el nombre y contenido del template', 'warning');
+    document.getElementById('backBtn').addEventListener('click', () => {
+        appState.selectedEmpresa = appState.selectedTemplate = appState.selectedTemplateConfig = null;
+        document.querySelectorAll('.empresa-card, .tipo-oc-card').forEach(c => c.classList.remove('selected'));
+        document.getElementById('tipoOCSection').style.display = 'none';
+        document.getElementById('formSection').style.display = 'none';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    document.getElementById('ocForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await generatePDF(false);
+    });
+
+    document.getElementById('previewBtn').addEventListener('click', () => generatePDF(true));
+}
+
+async function generatePDF(preview) {
+    const data = collectFormData();
+    const errors = validateData(data);
+    if (errors.length) {
+        showToast(errors[0], 'error');
         return;
     }
 
+    const submitBtn = document.getElementById('generateBtn');
+    const previewBtn = document.getElementById('previewBtn');
+    const btn = preview ? previewBtn : submitBtn;
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    submitBtn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando...';
+
     try {
-        const response = await fetch('/api/templates', {
+        const token = await sbGetAccessToken();
+        if (!token) throw new Error('Tu sesión expiró. Vuelve a ingresar.');
+
+        const response = await fetch('/api/generate-pdf', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, content })
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({
+                template: appState.selectedTemplate,
+                empresa: appState.selectedEmpresa,
+                preview: !!preview,
+                data
+            })
         });
 
         if (!response.ok) {
-            throw new Error('Error al guardar el template');
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || 'Error al generar el PDF');
         }
 
-        showToast('Template guardado correctamente', 'success');
-        await loadTemplates();
-        document.querySelector('[data-tab="templates"]').click();
+        const numeroOC = response.headers.get('X-Numero-OC') || '';
+        const blob = await response.blob();
+        if (blob.size === 0) throw new Error('El PDF generado está vacío');
+        const url = window.URL.createObjectURL(blob);
 
-    } catch (error) {
-        console.error('Error:', error);
-        showToast('Error al guardar el template: ' + error.message, 'error');
-    }
-}
-
-async function editTemplate(name) {
-    try {
-        const response = await fetch(`/api/templates/${name}`);
-        const template = await response.json();
-
-        document.getElementById('templateName').value = name.replace('.ejs', '');
-        document.getElementById('templateEditor').value = template.content;
-        document.querySelector('[data-tab="editor"]').click();
-
-    } catch (error) {
-        console.error('Error:', error);
-        showToast('Error al cargar el template', 'error');
-    }
-}
-
-async function deleteTemplate(name) {
-    if (!confirm(`¿Estás seguro de eliminar el template "${name}"?`)) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`/api/templates/${name}`, {
-            method: 'DELETE'
-        });
-
-        if (!response.ok) {
-            throw new Error('Error al eliminar el template');
+        if (preview) {
+            document.getElementById('previewFrame').src = url;
+            document.getElementById('previewModal').classList.add('active');
+        } else {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `OC_${numeroOC || Date.now()}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { window.URL.revokeObjectURL(url); document.body.removeChild(a); }, 100);
+            showToast(`OC ${numeroOC} generada y descargada`, 'success');
         }
-
-        showToast('Template eliminado correctamente', 'success');
-        await loadTemplates();
-        loadTemplatesManagement();
-
     } catch (error) {
-        console.error('Error:', error);
-        showToast('Error al eliminar el template: ' + error.message, 'error');
+        showToast(error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        submitBtn.disabled = false;
+        btn.innerHTML = original;
     }
 }
 
-// ========================================
+// ------------------------------------------------------------
 // UTILIDADES
-// ========================================
+// ------------------------------------------------------------
 function showToast(message, type = 'info') {
     const toast = document.getElementById('toast');
     toast.textContent = message;
     toast.className = `toast show ${type}`;
-
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
+    setTimeout(() => toast.classList.remove('show'), 3500);
 }
 
-function closeModal(modalId) {
-    document.getElementById(modalId).classList.remove('active');
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function formatFileSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-}
-
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleString('es-ES', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-// Cerrar modal al hacer clic fuera
-window.onclick = (event) => {
-    if (event.target.classList.contains('modal')) {
-        event.target.classList.remove('active');
-    }
-};
-
-// Refrescar historial
-document.getElementById('refreshHistoryBtn').addEventListener('click', loadHistory);
+window.onclick = (e) => { if (e.target.classList.contains('modal')) e.target.classList.remove('active'); };

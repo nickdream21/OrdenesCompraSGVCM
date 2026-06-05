@@ -3,251 +3,193 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Órdenes de Compra - Profesional</title>
+    <meta name="theme-color" content="#1e293b">
+    <title>Órdenes de Compra</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="container">
-            <div class="header-content">
-                <h1><i class="fas fa-file-invoice"></i> Sistema de Órdenes de Compra</h1>
-                <p class="subtitle">Genera órdenes de compra profesionales en PDF</p>
+
+    <!-- ============ LOGIN ============ -->
+    <div id="loginView" class="login-view">
+        <form id="loginForm" class="login-card">
+            <div class="login-logo"><i class="fas fa-file-invoice"></i></div>
+            <h1>Órdenes de Compra</h1>
+            <p>Ingresa con la clave del equipo</p>
+            <div class="form-group">
+                <input id="loginEmail" type="email" class="form-control" placeholder="Correo" autocomplete="username" required>
             </div>
+            <div class="form-group">
+                <input id="loginPassword" type="password" class="form-control" placeholder="Contraseña" autocomplete="current-password" required>
+            </div>
+            <div id="loginError" class="form-error"></div>
+            <button id="loginBtn" type="submit" class="btn btn-primary btn-block">
+                <i class="fas fa-right-to-bracket"></i> Ingresar
+            </button>
+        </form>
+    </div>
+
+    <!-- ============ APP ============ -->
+    <div id="appView" style="display:none">
+        <header class="app-header">
+            <div class="brand"><i class="fas fa-file-invoice"></i> Órdenes de Compra</div>
+            <button id="logoutBtn" class="btn-icon" title="Cerrar sesión"><i class="fas fa-right-from-bracket"></i></button>
+        </header>
+
+        <nav class="nav">
+            <button class="nav-item active" data-view="generate"><i class="fas fa-plus-circle"></i><span>Generar</span></button>
+            <button class="nav-item" data-view="obras"><i class="fas fa-helmet-safety"></i><span>Obras</span></button>
+            <button class="nav-item" data-view="proveedores"><i class="fas fa-truck"></i><span>Proveedores</span></button>
+            <button class="nav-item" data-view="historial"><i class="fas fa-clock-rotate-left"></i><span>Historial</span></button>
+        </nav>
+
+        <main class="main">
+
+            <!-- GENERAR OC -->
+            <section id="view-generate" class="view active">
+                <div class="card">
+                    <div class="step">
+                        <h3><span class="step-num">1</span> Selecciona la empresa</h3>
+                        <div id="empresaSelector" class="empresa-selector"></div>
+                    </div>
+
+                    <div class="step" id="tipoOCSection" style="display:none">
+                        <h3><span class="step-num">2</span> Tipo de orden</h3>
+                        <div id="tipoOCSelector" class="tipo-oc-selector"></div>
+                    </div>
+
+                    <div class="step" id="formSection" style="display:none">
+                        <h3><span class="step-num">3</span> Completa los datos</h3>
+                        <div class="oc-note"><i class="fas fa-circle-info"></i> El número de OC se asignará automáticamente al generar.</div>
+
+                        <div id="optionalFieldsToggle" style="display:none">
+                            <h4 class="optional-title"><i class="fas fa-sliders"></i> Campos opcionales</h4>
+                            <div id="optionalFieldsCheckboxes" class="optional-checkboxes"></div>
+                        </div>
+
+                        <form id="ocForm">
+                            <div id="formFields"></div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" id="clearForm"><i class="fas fa-eraser"></i> Limpiar</button>
+                                <button type="button" class="btn btn-secondary" id="backBtn"><i class="fas fa-arrow-left"></i> Cambiar</button>
+                                <button type="button" class="btn btn-info" id="previewBtn"><i class="fas fa-eye"></i> Vista previa</button>
+                                <button type="submit" class="btn btn-primary" id="generateBtn"><i class="fas fa-file-pdf"></i> Generar OC</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- OBRAS -->
+            <section id="view-obras" class="view">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-helmet-safety"></i> Obras</h2>
+                        <button class="btn btn-primary btn-sm" id="addObraBtn"><i class="fas fa-plus"></i> Nueva obra</button>
+                    </div>
+                    <div id="obrasContent"></div>
+                </div>
+            </section>
+
+            <!-- PROVEEDORES -->
+            <section id="view-proveedores" class="view">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-truck"></i> Proveedores</h2>
+                        <button class="btn btn-primary btn-sm" id="addProveedorBtn"><i class="fas fa-plus"></i> Nuevo proveedor</button>
+                    </div>
+                    <div id="proveedoresContent"></div>
+                </div>
+            </section>
+
+            <!-- HISTORIAL -->
+            <section id="view-historial" class="view">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-clock-rotate-left"></i> Historial</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="renderHistorial()"><i class="fas fa-sync"></i> Actualizar</button>
+                    </div>
+                    <div id="historialContent"></div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ============ MODAL PROVEEDOR ============ -->
+    <div class="modal" id="proveedorModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="pvModalTitle">Nuevo proveedor</h2>
+                <button class="modal-close" onclick="closeModal('proveedorModal')"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="proveedorModalForm" class="modal-body">
+                <div class="form-group"><label class="form-label required">Razón Social</label><input id="pv_razon_social" class="form-control" required></div>
+                <div class="form-group"><label class="form-label">RUC</label><input id="pv_ruc" class="form-control" inputmode="numeric" maxlength="11"></div>
+                <div class="form-group"><label class="form-label">Dirección</label><input id="pv_direccion" class="form-control"></div>
+                <div class="form-group"><label class="form-label">Cuenta Corriente</label><input id="pv_cuenta_corriente" class="form-control"></div>
+                <div class="form-group"><label class="form-label">Contacto</label><input id="pv_contacto" class="form-control"></div>
+                <div class="form-group"><label class="form-label">Teléfono</label><input id="pv_telefono" class="form-control" inputmode="tel"></div>
+                <div class="form-group"><label class="form-label">Correo</label><input id="pv_correo" type="email" class="form-control"></div>
+                <div id="pvModalError" class="form-error"></div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('proveedorModal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="pvSaveBtn"><i class="fas fa-save"></i> Guardar</button>
+                </div>
+            </form>
         </div>
-    </header>
+    </div>
 
-    <!-- Navigation -->
-    <nav class="nav-tabs">
-        <div class="container">
-            <button class="tab-btn active" data-tab="generate">
-                <i class="fas fa-plus-circle"></i> Generar OC
-            </button>
-            <button class="tab-btn" data-tab="templates">
-                <i class="fas fa-th-large"></i> Templates
-            </button>
-            <button class="tab-btn" data-tab="history">
-                <i class="fas fa-history"></i> Historial
-            </button>
-            <button class="tab-btn" data-tab="editor">
-                <i class="fas fa-code"></i> Editor de Templates
-            </button>
+    <!-- ============ MODAL OBRA ============ -->
+    <div class="modal" id="obraModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="obModalTitle">Nueva obra</h2>
+                <button class="modal-close" onclick="closeModal('obraModal')"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="obraModalForm" class="modal-body">
+                <div class="form-group">
+                    <label class="form-label required">Empresa</label>
+                    <select id="ob_empresa" class="form-control" required>
+                        <option value="">Seleccione...</option>
+                        <option value="viviana">VIVIANA</option>
+                        <option value="camafra">CAMAFRA</option>
+                    </select>
+                </div>
+                <div class="form-group"><label class="form-label required">Nombre de la obra</label><textarea id="ob_nombre" class="form-control" rows="2" required></textarea></div>
+                <div class="form-group"><label class="form-label">Dirección (opcional)</label><input id="ob_direccion" class="form-control"></div>
+                <div id="obModalError" class="form-error"></div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('obraModal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="obSaveBtn"><i class="fas fa-save"></i> Guardar</button>
+                </div>
+            </form>
         </div>
-    </nav>
+    </div>
 
-    <!-- Main Content -->
-    <main class="main-content">
-        <div class="container">
-            
-            <!-- TAB 1: GENERAR OC -->
-            <div class="tab-content active" id="generate">
-                <div class="card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-file-alt"></i> Nueva Orden de Compra</h2>
-                    </div>
-                    <div class="card-body">
-
-                        <!-- Paso 1: Selección de Empresa -->
-                        <div class="form-section">
-                            <h3><i class="fas fa-building"></i> Paso 1: Selecciona la Empresa</h3>
-                            <div class="empresa-selector">
-                                <div class="empresa-card" data-empresa="viviana">
-                                    <div class="empresa-icon">
-                                        <i class="fas fa-truck"></i>
-                                    </div>
-                                    <h4>Servicios Generales VIVIANA</h4>
-                                    <p>E.I.R.L.</p>
-                                    <span class="empresa-badge">RUC: 20483851171</span>
-                                </div>
-                                <div class="empresa-card" data-empresa="camafra">
-                                    <div class="empresa-icon" style="color: #ff6600;">
-                                        <i class="fas fa-hard-hat"></i>
-                                    </div>
-                                    <h4>CAMAFRA MOTORS</h4>
-                                    <p>S.A.C.</p>
-                                    <span class="empresa-badge">RUC: 20529940395</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Paso 2: Selección de Tipo de OC -->
-                        <div class="form-section" id="tipoOCSection" style="display: none;">
-                            <h3><i class="fas fa-list-alt"></i> Paso 2: Tipo de Orden de Compra</h3>
-                            <div class="tipo-oc-selector" id="tipoOCSelector">
-                                <!-- Se llenará dinámicamente -->
-                            </div>
-                        </div>
-
-                        <!-- Paso 3: Formulario Dinámico -->
-                        <div class="form-section" id="formSection" style="display: none;">
-                            <h3><i class="fas fa-edit"></i> Paso 3: Completa la Información</h3>
-
-                            <!-- Campos Opcionales -->
-                            <div id="optionalFieldsToggle" style="display: none; margin-bottom: 20px;">
-                                <div class="optional-fields-header">
-                                    <h4><i class="fas fa-plus-circle"></i> Campos Opcionales</h4>
-                                    <p class="text-muted">Activa los campos adicionales que necesites para esta orden</p>
-                                </div>
-                                <div id="optionalFieldsCheckboxes" class="optional-checkboxes">
-                                    <!-- Se llenará dinámicamente -->
-                                </div>
-                            </div>
-
-                            <form id="ocForm">
-                                <div id="formFields"></div>
-
-                                <div class="form-actions">
-                                    <button type="button" class="btn btn-secondary" id="clearForm">
-                                        <i class="fas fa-eraser"></i> Limpiar Formulario
-                                    </button>
-                                    <button type="button" class="btn btn-info" id="backBtn">
-                                        <i class="fas fa-arrow-left"></i> Cambiar Empresa/Tipo
-                                    </button>
-                                    <button type="button" class="btn btn-success" id="previewBtn">
-                                        <i class="fas fa-eye"></i> Vista Previa
-                                    </button>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-file-pdf"></i> Generar PDF
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-
-                    </div>
-                </div>
-            </div>
-
-            <!-- TAB 2: TEMPLATES -->
-            <div class="tab-content" id="templates">
-                <div class="card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-th-large"></i> Gestión de Templates</h2>
-                        <button class="btn btn-primary btn-sm" id="newTemplateBtn">
-                            <i class="fas fa-plus"></i> Nuevo Template
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <div class="templates-grid" id="templatesGrid">
-                            <div class="loading">
-                                <i class="fas fa-spinner fa-spin"></i> Cargando templates...
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TAB 3: HISTORIAL -->
-            <div class="tab-content" id="history">
-                <div class="card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-history"></i> Historial de PDFs Generados</h2>
-                        <button class="btn btn-secondary btn-sm" id="refreshHistoryBtn">
-                            <i class="fas fa-sync-alt"></i> Actualizar
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="data-table" id="historyTable">
-                                <thead>
-                                    <tr>
-                                        <th>Archivo</th>
-                                        <th>Tamaño</th>
-                                        <th>Fecha</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td colspan="4" class="text-center">
-                                            <div class="loading">
-                                                <i class="fas fa-spinner fa-spin"></i> Cargando historial...
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TAB 4: EDITOR DE TEMPLATES -->
-            <div class="tab-content" id="editor">
-                <div class="card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-code"></i> Editor de Templates</h2>
-                    </div>
-                    <div class="card-body">
-                        <div class="editor-container">
-                            <div class="editor-toolbar">
-                                <input type="text" id="templateName" class="form-control" 
-                                       placeholder="Nombre del template (sin extensión)" style="max-width: 300px;">
-                                <button class="btn btn-success" id="saveTemplateBtn">
-                                    <i class="fas fa-save"></i> Guardar Template
-                                </button>
-                            </div>
-                            
-                            <div class="editor-help">
-                                <details>
-                                    <summary><i class="fas fa-question-circle"></i> Ayuda - Sintaxis del Template</summary>
-                                    <div class="help-content">
-                                        <h4>Variables EJS:</h4>
-                                        <ul>
-                                            <li><code>&lt;%= variable %&gt;</code> - Imprime el valor de una variable</li>
-                                            <li><code>&lt;%- html %&gt;</code> - Imprime HTML sin escapar</li>
-                                            <li><code>&lt;% codigo %&gt;</code> - Ejecuta código JavaScript</li>
-                                        </ul>
-                                        
-                                        <h4>Funciones disponibles:</h4>
-                                        <ul>
-                                            <li><code>&lt;%= formatCurrency(valor, 'S/.') %&gt;</code> - Formatea números como moneda</li>
-                                            <li><code>&lt;%= formatNumber(valor, 2) %&gt;</code> - Formatea números con decimales</li>
-                                            <li><code>&lt;%= moment(fecha).format('DD/MM/YYYY') %&gt;</code> - Formatea fechas</li>
-                                        </ul>
-
-                                        <h4>Configuración del Template (opcional):</h4>
-                                        <pre>&lt;%# CONFIG: {
-  "displayName": "Nombre del Template",
-  "description": "Descripción",
-  "fields": [
-    {"name": "campo1", "label": "Campo 1", "type": "text", "required": true},
-    {"name": "campo2", "label": "Campo 2", "type": "number"}
-  ]
-} %&gt;</pre>
-                                    </div>
-                                </details>
-                            </div>
-
-                            <textarea id="templateEditor" class="code-editor" 
-                                      placeholder="Escribe tu template HTML aquí..."></textarea>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    </main>
-
-    <!-- Modal para Vista Previa -->
+    <!-- ============ MODAL VISTA PREVIA ============ -->
     <div class="modal" id="previewModal">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2><i class="fas fa-eye"></i> Vista Previa</h2>
-                <button class="modal-close" onclick="closeModal('previewModal')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <h2><i class="fas fa-eye"></i> Vista previa</h2>
+                <button class="modal-close" onclick="closeModal('previewModal')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
-                <iframe id="previewFrame" style="width: 100%; height: 70vh; border: 1px solid #ddd;"></iframe>
+                <iframe id="previewFrame" class="preview-frame"></iframe>
             </div>
         </div>
     </div>
 
-    <!-- Toast de Notificaciones -->
     <div class="toast" id="toast"></div>
 
     <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-config.js"></script>
+    <script src="js/supabaseClient.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/proveedores.js"></script>
+    <script src="js/obras.js"></script>
+    <script src="js/historial.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
