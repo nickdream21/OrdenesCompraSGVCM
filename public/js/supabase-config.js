@@ -8,6 +8,6 @@
 // compartido y las políticas RLS. NUNCA pongas aquí la "service_role".
 // ============================================================
 window.SUPABASE_CONFIG = {
-    url: 'https://TU-PROYECTO.supabase.co',
-    anonKey: 'TU_ANON_KEY'
+    url: 'https://tayygenvbyxhohouhhof.supabase.co',
+    anonKey: 'sb_publishable_cIKziJTi7simQsqLwAyAyQ_h23vn9vR'
 };
