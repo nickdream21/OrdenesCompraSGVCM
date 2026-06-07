@@ -220,14 +220,12 @@ function generateFieldHTML(field) {
     const reqAttr = field.required ? 'required' : '';
     let input = '';
 
-    // Campo OBRA -> select desde la BD
+    // Campo OBRA -> custom select con bottom-sheet en móvil
     if (field.source === 'obra') {
         return `
             <div class="form-group">
-                <label class="form-label ${reqClass}" for="obra">${field.label}</label>
-                <select class="form-control" id="obra" name="obra" ${reqAttr}>
-                    <option value="">Seleccione una obra...</option>
-                </select>
+                <label class="form-label ${reqClass}">${field.label}</label>
+                <div id="obra-cs-wrapper" class="cs-wrapper"></div>
                 <textarea class="form-control" id="obra_otra" name="obra_otra" rows="2"
                     placeholder="Escribe la obra" style="display:none; margin-top:8px;"></textarea>
             </div>`;
@@ -274,20 +272,116 @@ function generateFieldHTML(field) {
         </div>`;
 }
 
-// ---- Select de OBRA ----
+// ---- Custom Select de OBRA ----
 function populateObraSelect() {
-    const sel = document.getElementById('obra');
-    if (!sel) return;
+    const wrapper = document.getElementById('obra-cs-wrapper');
+    if (!wrapper) return;
     const obras = appState.obras || [];
-    sel.innerHTML = `<option value="">Seleccione una obra...</option>`
-        + obras.map(o => `<option value="${escapeHtml(o.nombre)}">${escapeHtml(o.nombre)}</option>`).join('')
-        + `<option value="__otra__">✏️ Otra (escribir)...</option>`;
+    const options = obras.map(o => ({ value: o.nombre, label: o.nombre }));
+    options.push({ value: '__otra__', label: 'Otra (escribir)...', isOther: true });
+    buildObraCustomSelect(wrapper, options);
+}
 
-    sel.addEventListener('change', () => {
-        const otra = document.getElementById('obra_otra');
-        if (sel.value === '__otra__') { otra.style.display = 'block'; otra.required = true; }
-        else { otra.style.display = 'none'; otra.required = false; otra.value = ''; }
+function buildObraCustomSelect(wrapper, options) {
+    wrapper.innerHTML = `
+        <button type="button" class="cs-trigger" aria-haspopup="listbox" aria-expanded="false">
+            <span class="cs-value cs-value--placeholder">Seleccione una obra...</span>
+            <i class="fas fa-chevron-down cs-arrow" aria-hidden="true"></i>
+        </button>
+        <input type="hidden" id="obra" name="obra">
+        <div class="cs-backdrop"></div>
+        <div class="cs-panel" role="listbox" aria-label="Seleccione una obra">
+            <div class="cs-panel-header">
+                <span class="cs-panel-title">Seleccionar obra</span>
+                <button type="button" class="cs-close" aria-label="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="cs-search-wrapper">
+                <i class="fas fa-search cs-search-icon" aria-hidden="true"></i>
+                <input type="text" class="cs-search" placeholder="Buscar obra..." autocomplete="off" aria-label="Buscar">
+            </div>
+            <div class="cs-options">
+                ${options.map(opt => `
+                    <div class="cs-option${opt.isOther ? ' cs-option-other' : ''}"
+                         data-value="${escapeHtml(opt.value)}" role="option" tabindex="0">
+                        ${opt.isOther ? '<i class="fas fa-pencil" aria-hidden="true"></i>' : ''}<span>${escapeHtml(opt.label)}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>`;
+
+    const trigger    = wrapper.querySelector('.cs-trigger');
+    const valueSpan  = wrapper.querySelector('.cs-value');
+    const backdrop   = wrapper.querySelector('.cs-backdrop');
+    const search     = wrapper.querySelector('.cs-search');
+    const optsList   = wrapper.querySelector('.cs-options');
+    const closeBtn   = wrapper.querySelector('.cs-close');
+    const hidden     = wrapper.querySelector('#obra');
+
+    const openPanel = () => {
+        wrapper.classList.add('cs-open');
+        trigger.setAttribute('aria-expanded', 'true');
+        setTimeout(() => search.focus(), 80);
+    };
+
+    const closePanel = () => {
+        wrapper.classList.remove('cs-open');
+        trigger.setAttribute('aria-expanded', 'false');
+        search.value = '';
+        filterOpts('');
+    };
+
+    const filterOpts = (q) => {
+        const ql = q.toLowerCase();
+        let any = false;
+        optsList.querySelectorAll('.cs-option').forEach(opt => {
+            const match = !ql || opt.textContent.toLowerCase().includes(ql);
+            opt.hidden = !match;
+            if (match) any = true;
+        });
+        let noRes = optsList.querySelector('.cs-no-results');
+        if (!any) {
+            if (!noRes) { noRes = document.createElement('div'); noRes.className = 'cs-no-results'; noRes.textContent = 'Sin resultados'; optsList.appendChild(noRes); }
+        } else if (noRes) noRes.remove();
+    };
+
+    const pickValue = (value, label) => {
+        hidden.value = value;
+        valueSpan.textContent = label;
+        valueSpan.classList.remove('cs-value--placeholder');
+        optsList.querySelectorAll('.cs-option').forEach(o =>
+            o.classList.toggle('selected', o.dataset.value === value)
+        );
+        const otraTA = document.getElementById('obra_otra');
+        if (value === '__otra__') {
+            if (otraTA) { otraTA.style.display = 'block'; otraTA.required = true; setTimeout(() => otraTA.focus(), 50); }
+        } else {
+            if (otraTA) { otraTA.style.display = 'none'; otraTA.required = false; otraTA.value = ''; }
+        }
+        closePanel();
+    };
+
+    trigger.addEventListener('click', () => wrapper.classList.contains('cs-open') ? closePanel() : openPanel());
+    backdrop.addEventListener('click', closePanel);
+    closeBtn.addEventListener('click', closePanel);
+    search.addEventListener('input', () => filterOpts(search.value));
+
+    optsList.addEventListener('click', e => {
+        const opt = e.target.closest('.cs-option');
+        if (opt && !opt.hidden) pickValue(opt.dataset.value, opt.querySelector('span').textContent.trim());
     });
+    optsList.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            const opt = e.target.closest('.cs-option');
+            if (opt && !opt.hidden) { e.preventDefault(); pickValue(opt.dataset.value, opt.querySelector('span').textContent.trim()); }
+        }
+    });
+
+    const onDocClick = e => { if (!wrapper.contains(e.target) && wrapper.classList.contains('cs-open')) closePanel(); };
+    const onDocKey   = e => { if (e.key === 'Escape' && wrapper.classList.contains('cs-open')) closePanel(); };
+    document.addEventListener('click', onDocClick);
+    document.addEventListener('keydown', onDocKey);
 }
 
 // ---- Select de PROVEEDOR (con autocompletado) ----
@@ -479,6 +573,20 @@ function validateData(data) {
 function initFormHandlers() {
     document.getElementById('clearForm').addEventListener('click', () => {
         document.getElementById('ocForm').reset();
+
+        // Reset custom obra select
+        const csWrapper = document.getElementById('obra-cs-wrapper');
+        if (csWrapper) {
+            csWrapper.classList.remove('cs-open');
+            const vs = csWrapper.querySelector('.cs-value');
+            if (vs) { vs.textContent = 'Seleccione una obra...'; vs.classList.add('cs-value--placeholder'); }
+            const hi = csWrapper.querySelector('#obra');
+            if (hi) hi.value = '';
+            csWrapper.querySelectorAll('.cs-option').forEach(o => o.classList.remove('selected'));
+        }
+        const otraTA = document.getElementById('obra_otra');
+        if (otraTA) { otraTA.style.display = 'none'; otraTA.required = false; otraTA.value = ''; }
+
         appState.selectedTemplateConfig.fields.filter(f => f.type === 'array').forEach(f => {
             const c = document.getElementById(`array_${f.name}`);
             if (c) { c.innerHTML = ''; addArrayItem(f.name); }

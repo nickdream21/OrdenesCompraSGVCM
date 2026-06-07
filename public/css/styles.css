@@ -262,6 +262,98 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
     .toast { bottom: 24px; }
 }
 
+/* ---------- CUSTOM SELECT (bottom-sheet en móvil, dropdown en desktop) ---------- */
+.cs-wrapper { position: relative; }
+
+.cs-trigger {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px;
+    background: #fff; cursor: pointer; text-align: left; font: inherit; color: var(--text);
+    transition: border-color .15s, box-shadow .15s;
+}
+.cs-trigger:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+
+.cs-value { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-value--placeholder { color: var(--muted); }
+
+.cs-arrow { color: var(--muted); font-size: 12px; flex-shrink: 0; transition: transform .2s; }
+.cs-open .cs-arrow { transform: rotate(180deg); }
+
+/* Panel base */
+.cs-panel {
+    display: none; flex-direction: column;
+    background: var(--surface); overflow: hidden;
+}
+.cs-open .cs-panel { display: flex; }
+
+.cs-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; background: #1e293b; color: #fff; flex-shrink: 0;
+}
+.cs-panel-title { font-weight: 600; font-size: 15px; }
+.cs-close {
+    background: rgba(255,255,255,.12); border: none; color: #fff;
+    width: 32px; height: 32px; border-radius: 8px; cursor: pointer;
+    font-size: 14px; display: flex; align-items: center; justify-content: center;
+}
+.cs-close:hover { background: rgba(255,255,255,.22); }
+
+.cs-search-wrapper {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    background: #f8fafc;
+}
+.cs-search-icon { color: var(--muted); font-size: 14px; }
+.cs-search { flex: 1; border: none; outline: none; font: inherit; font-size: 14px; background: transparent; }
+
+.cs-options { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+.cs-option {
+    padding: 13px 16px; cursor: pointer; font-size: 14px;
+    line-height: 1.45; white-space: normal; word-break: break-word;
+    display: flex; align-items: flex-start; gap: 8px;
+    border-bottom: 1px solid #f1f5f9; transition: background .1s;
+}
+.cs-option:last-child { border-bottom: none; }
+.cs-option:hover, .cs-option:focus { background: #eff6ff; outline: none; }
+.cs-option.selected { background: #dbeafe; color: var(--primary); font-weight: 600; }
+.cs-option-other { color: var(--warning); font-style: italic; border-top: 2px solid var(--border) !important; margin-top: 4px; }
+.cs-option-other i { flex-shrink: 0; margin-top: 2px; }
+.cs-no-results { padding: 20px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+
+/* Desktop: dropdown flotante */
+@media (min-width: 768px) {
+    .cs-backdrop { display: none !important; }
+    .cs-panel {
+        position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 120;
+        border: 1px solid var(--border); border-radius: 12px;
+        box-shadow: 0 8px 28px rgba(0,0,0,.14);
+    }
+    .cs-panel-header { display: none; }
+    .cs-options { max-height: 260px; }
+}
+
+/* Móvil: bottom sheet */
+@media (max-width: 767px) {
+    .cs-backdrop {
+        display: none; position: fixed; inset: 0;
+        background: rgba(15,23,42,.55); z-index: 200;
+    }
+    .cs-open .cs-backdrop { display: block; animation: cs-fade-in .2s; }
+
+    .cs-panel {
+        position: fixed; left: 0; right: 0; bottom: -100%; top: auto;
+        max-height: 82vh; border-radius: 20px 20px 0 0; z-index: 201;
+        transition: bottom .28s cubic-bezier(0.32, 0.72, 0, 1);
+        padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    .cs-open .cs-panel { bottom: 0; }
+    .cs-options { max-height: calc(82vh - 130px); }
+    .cs-option { padding: 15px 18px; font-size: 15px; }
+}
+
+@keyframes cs-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
 /* ---------- RESPONSIVE: tablas como tarjetas en móvil ---------- */
 @media (max-width: 640px) {
     .data-table thead { display: none; }
