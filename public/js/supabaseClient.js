@@ -41,6 +41,16 @@ async function sbLogout() {
     await SB.auth.signOut();
 }
 
+async function sbGetUser() {
+    const { data } = await SB.auth.getUser();
+    return data?.user || null;
+}
+
+async function sbUpdateUserName(nombre) {
+    const { error } = await SB.auth.updateUser({ data: { nombre } });
+    if (error) throw error;
+}
+
 // ------------------------------------------------------------
 // Lecturas comunes (cacheadas en memoria por sesión de página)
 // ------------------------------------------------------------

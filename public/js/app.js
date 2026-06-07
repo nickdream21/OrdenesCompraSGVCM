@@ -8,7 +8,8 @@ const appState = {
     selectedTemplateConfig: null,
     optionalFieldsState: {},
     obras: [],
-    proveedores: []
+    proveedores: [],
+    usuario: null
 };
 
 // ------------------------------------------------------------
@@ -19,6 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initNav();
     initEmpresaSelector();
     initFormHandlers();
+    initNameSetup();
 
     const session = await sbGetSession();
     if (session) showApp();
@@ -35,10 +37,60 @@ function showLogin() {
     document.getElementById('appView').style.display = 'none';
 }
 
-function showApp() {
+async function showApp() {
     document.getElementById('loginView').style.display = 'none';
     document.getElementById('appView').style.display = 'block';
     renderEmpresas();
+
+    try {
+        const user = await sbGetUser();
+        appState.usuario = user;
+        renderHeaderUser(user);
+        if (user && !user.user_metadata?.nombre) {
+            document.getElementById('nameSetupModal').style.display = 'flex';
+        }
+    } catch (_) {}
+}
+
+function renderHeaderUser(user) {
+    if (!user) return;
+    const nombre = user.user_metadata?.nombre || user.email?.split('@')[0] || 'Usuario';
+    const chip = document.getElementById('headerUserChip');
+    const nameEl = document.getElementById('headerUserName');
+    if (chip && nameEl) {
+        nameEl.textContent = nombre;
+        chip.style.display = 'flex';
+    }
+}
+
+function initNameSetup() {
+    const btn = document.getElementById('saveNombreBtn');
+    if (!btn) return;
+    const input = document.getElementById('setupNombre');
+    const errEl = document.getElementById('nameSetupError');
+
+    const save = async () => {
+        const nombre = input.value.trim();
+        if (!nombre) { errEl.textContent = 'Ingresa tu nombre.'; return; }
+        errEl.textContent = '';
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+        try {
+            await sbUpdateUserName(nombre);
+            appState.usuario = await sbGetUser();
+            renderHeaderUser(appState.usuario);
+            document.getElementById('nameSetupModal').style.display = 'none';
+            showToast('¡Hola, ' + nombre.split(' ')[0] + '!', 'success');
+        } catch (err) {
+            errEl.textContent = 'Error: ' + err.message;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check"></i> Guardar y continuar';
+        }
+    };
+
+    btn.addEventListener('click', save);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') save(); });
 }
 
 // ------------------------------------------------------------
@@ -690,4 +742,7 @@ function escapeHtml(str) {
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-window.onclick = (e) => { if (e.target.classList.contains('modal')) e.target.classList.remove('active'); };
+window.onclick = (e) => {
+    if (e.target.classList.contains('modal') && e.target.id !== 'nameSetupModal')
+        e.target.classList.remove('active');
+};

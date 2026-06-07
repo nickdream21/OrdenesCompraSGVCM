@@ -102,6 +102,8 @@ module.exports = async (req, res) => {
         if (!token) { res.statusCode = 401; return res.json({ error: 'No autenticado' }); }
         const { data: userData, error: userErr } = await sb.auth.getUser(token);
         if (userErr || !userData || !userData.user) { res.statusCode = 401; return res.json({ error: 'Sesión inválida' }); }
+        const creado_por_email = userData.user.email || null;
+        const creado_por_nombre = userData.user.user_metadata?.nombre || null;
 
         // 2) Datos de entrada
         const body = await readBody(req);
@@ -118,6 +120,9 @@ module.exports = async (req, res) => {
         const anio = (typeof data.fecha === 'string' && /^\d{4}/.test(data.fecha))
             ? parseInt(data.fecha.slice(0, 4), 10)
             : new Date().getFullYear();
+        const mes = (typeof data.fecha === 'string' && data.fecha.length >= 7)
+            ? data.fecha.slice(5, 7)
+            : String(new Date().getMonth() + 1).padStart(2, '0');
         let correlativo = null;
         let numero_oc;
         if (preview) {
@@ -162,7 +167,7 @@ module.exports = async (req, res) => {
 
         // 6) Archivar PDF en Storage + registrar en `ordenes` (no en vista previa)
         if (!preview) {
-            const pdfPath = `${empresa}/${anio}/${numero_oc}.pdf`;
+            const pdfPath = `${empresa}/${anio}/${mes}/${numero_oc}.pdf`;
             const { error: upErr } = await sb.storage.from('ordenes-pdf')
                 .upload(pdfPath, pdfBuffer, { contentType: 'application/pdf', upsert: true });
             if (upErr) console.error('Error subiendo a Storage:', upErr.message);
@@ -178,7 +183,9 @@ module.exports = async (req, res) => {
                 fecha: data.fecha || null,
                 total: Number(total.toFixed(2)),
                 moneda,
-                pdf_path: pdfPath
+                pdf_path: pdfPath,
+                creado_por_email,
+                creado_por_nombre
             });
             if (insErr) console.error('Error registrando la orden:', insErr.message);
         }

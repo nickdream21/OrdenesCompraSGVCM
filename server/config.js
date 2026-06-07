@@ -29,5 +29,5 @@ module.exports = {
     USE_COMPANY_SUBFOLDERS: true,
 
     // Si quieres organizar por fecha (año/mes)
-    USE_DATE_SUBFOLDERS: false
+    USE_DATE_SUBFOLDERS: true
 };

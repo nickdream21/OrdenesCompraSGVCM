@@ -68,6 +68,15 @@ body {
 }
 .brand { font-weight: 700; font-size: 17px; }
 .brand i { margin-right: 6px; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+.header-user-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.12); color: #fff;
+    padding: 5px 10px 5px 8px; border-radius: 20px;
+    font-size: 13px; font-weight: 600; max-width: 160px;
+}
+.header-user-chip i { font-size: 16px; flex-shrink: 0; }
+.header-user-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn-icon {
     background: rgba(255,255,255,.12); color: #fff; border: none;
     width: 38px; height: 38px; border-radius: 10px; cursor: pointer; font-size: 16px;
@@ -207,6 +216,7 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
 .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
 
 .loading, .empty { text-align: center; color: var(--muted); padding: 30px 10px; }
+.col-autor { color: var(--muted); font-size: 13px; }
 .loading i { margin-right: 8px; }
 .form-error { color: var(--danger); font-size: 13px; min-height: 18px; margin: 4px 0; }
 
