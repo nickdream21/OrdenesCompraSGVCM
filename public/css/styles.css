@@ -531,3 +531,111 @@ textarea.form-control { resize: vertical; min-height: 64px; }
 
 /* que el encabezado fijo no tape los títulos al desplazarse */
 .step, .grupo, .form-control, .cs-trigger { scroll-margin-top: 84px; }
+
+/* ============================================================
+   v4 — buscador con RUC, empresas administrables, móvil
+   ============================================================ */
+.cs-option { flex-direction: column; gap: 1px; }
+.cs-option-other { flex-direction: row; align-items: center; gap: 10px; font-weight: 600; }
+.cs-opt-sub { font-size: 12.5px; color: var(--tenue); font-weight: 500; }
+.cs-option.selected .cs-opt-sub { color: var(--plano-2); }
+body.combo-abierto { overflow: hidden; }
+@media (min-width: 861px) { body.combo-abierto { overflow: auto; } }
+
+/* Empresa sin logo: iniciales con su color */
+.logo-iniciales {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--emp, var(--plano)); color: #fff; font-weight: 750; font-stretch: 110%;
+    border-radius: 8px; font-size: 17px;
+}
+.empresa-card .logo-iniciales { width: 48px; height: 48px; justify-self: center; }
+.empresa-nueva { border-style: dashed; background: transparent; }
+.empresa-nueva::before { display: none; }
+.empresa-nueva:hover { background: var(--papel); }
+.logo-mas {
+    display: inline-flex; align-items: center; justify-content: center; justify-self: center;
+    width: 44px; height: 44px; border-radius: 50%; border: 1px dashed var(--tenue); color: var(--plano);
+}
+.empresa-nueva .empresa-nombre { color: var(--plano); }
+
+.mini-logo { width: 36px; height: 30px; object-fit: contain; flex: none; }
+.mini-logo.logo-iniciales { font-size: 12px; border-radius: 6px; }
+.celda-empresa { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; text-align: left; }
+.fila-inactiva td { color: var(--tenue); }
+.fila-inactiva .mini-logo { opacity: .45; }
+
+.input-accion { display: flex; gap: 8px; }
+.input-accion .form-control { flex: 1; min-width: 0; }
+.input-accion .btn { flex: none; }
+
+.subir-img {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    min-height: 72px; padding: 10px; border: 1px dashed var(--trazo); border-radius: var(--r-campo);
+}
+.subir-img img { width: 64px; height: 52px; object-fit: contain; background: #F6F8FA; border-radius: 4px; }
+.subir-vacio { color: var(--tenue); font-size: 13px; }
+.form-color { padding: 4px; height: 42px; cursor: pointer; }
+.nota { font-size: 13.5px; color: var(--tenue); background: #F4F7FA; border-left: 3px solid var(--plano-2); padding: 8px 12px; margin-bottom: 14px; border-radius: 0 4px 4px 0; }
+code { font-size: 13px; background: var(--concreto); padding: 1px 5px; border-radius: 4px; }
+
+.hoja-toggle { background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: default; }
+.hoja-toggle i { display: none; }
+
+@media (max-width: 860px) {
+    /* 16 px evita que iPhone haga zoom al tocar un campo */
+    .form-control, .cs-trigger, .cs-search { font-size: 16px; }
+    .form-control-sm { font-size: 16px; }
+    .btn { min-height: 46px; }
+    .btn-sm { min-height: 40px; }
+
+    .nav-item { font-size: 10.5px; padding: 0 2px; }
+    .nav-item i { font-size: 17px; }
+    .header-user-chip span { max-width: 90px; }
+
+    /* Empresas: dos columnas compactas, logo arriba */
+    .empresa-selector { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .empresa-card { grid-template-columns: 1fr; justify-items: start; gap: 6px; padding: 12px 12px 12px 14px; }
+    .empresa-logo { grid-row: auto; width: 48px; height: 40px; }
+    .empresa-nombre { font-size: 14px; }
+    .empresa-ruc { font-size: 12px; }
+
+    .step { margin-bottom: 26px; }
+    .step-title { font-size: 18px; }
+
+    /* Ventanas como hoja inferior */
+    .modal { align-items: flex-end; padding: 0; }
+    .modal-content { max-width: none; max-height: 94vh; border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom, 0); }
+    .modal-header { position: sticky; top: 0; background: var(--papel); z-index: 2; }
+    .modal-body .form-actions { position: sticky; bottom: 0; background: var(--papel); padding: 12px 0 4px; margin-top: 4px; }
+    .modal-body .form-actions .btn { flex: 1; }
+    .modal-large .modal-content, .modal-large { border-radius: 16px 16px 0 0; }
+    .preview-frame { height: 80vh; }
+
+    /* Hoja: tocar el total despliega el resumen completo */
+    .hoja-toggle i { display: inline-block; }
+    .hoja-toggle {
+        display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 0;
+        cursor: pointer; text-align: left; color: inherit;
+    }
+    .hoja-toggle i { color: var(--tenue); font-size: 12px; transition: transform .2s; }
+    .hoja.abierta .hoja-toggle i { transform: rotate(180deg); }
+    .hoja { grid-template-columns: auto 1fr; }
+    .hoja.abierta { grid-template-columns: 1fr; max-height: calc(100vh - var(--nav-movil) - 70px); overflow-y: auto; border-radius: 16px 16px 0 0; }
+    .hoja.abierta .hoja-paper { padding: 4px 0 8px; }
+    .hoja.abierta .hoja-paper > .hoja-head { display: flex; }
+    .hoja.abierta .hoja-paper > .hoja-empresa,
+    .hoja.abierta .hoja-paper > .hoja-items,
+    .hoja.abierta .hoja-paper > .hoja-son { display: block; }
+    .hoja.abierta .hoja-paper > .hoja-datos { display: grid; }
+    .hoja.abierta .hoja-totales > div:not(.hoja-total) { display: flex; }
+    .hoja.abierta .hoja-items { max-height: 30vh; }
+    .hoja.abierta .hoja-total { flex-direction: row; justify-content: space-between; margin-top: 6px; padding-top: 8px; border-top: 2px solid var(--texto); }
+
+    .input-accion .btn { padding: 0 12px; }
+    .subir-img img { width: 56px; height: 46px; }
+}
+
+@media (max-width: 360px) {
+    .empresa-selector { grid-template-columns: 1fr; }
+    .header-user-chip { display: none !important; }
+}

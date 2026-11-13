@@ -4,8 +4,6 @@
 
 let _obEditId = null;
 
-// Etiquetas cortas por empresa, tomadas del catálogo (config.js)
-const EMPRESA_LABEL = Object.fromEntries(window.OC_EMPRESAS.map(e => [e.codigo, e.nombre.toUpperCase()]));
 
 async function renderObras() {
     const cont = document.getElementById('obrasContent');
@@ -23,7 +21,7 @@ async function renderObras() {
                 <tbody>
                   ${obras.map(o => `
                     <tr>
-                      <td data-label="Empresa"><span class="badge">${EMPRESA_LABEL[o.empresa] || o.empresa}</span></td>
+                      <td data-label="Empresa"><span class="badge">${escapeHtml(empresaLabel(o.empresa))}</span></td>
                       <td data-label="Obra">${escapeHtml(o.nombre)}</td>
                       <td data-label="Dirección">${escapeHtml(o.direccion || '')}</td>
                       <td class="row-actions">
@@ -100,9 +98,6 @@ async function deactivateObra(id) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const sel = document.getElementById('ob_empresa');
-    if (sel) sel.insertAdjacentHTML('beforeend',
-        window.OC_EMPRESAS.map(e => `<option value="${e.codigo}">${escapeHtml(e.nombre)}</option>`).join(''));
     const addBtn = document.getElementById('addObraBtn');
     if (addBtn) addBtn.addEventListener('click', () => openObraModal(null));
     const form = document.getElementById('obraModalForm');

@@ -41,6 +41,7 @@
             logo: 'logo-viviana.png',
             icon: 'fa-truck',
             color: '#2563eb',
+            formato: 'propio',
             numeracion: { formato: 'anio' }
         },
         {
@@ -51,7 +52,8 @@
             ruc: '20529940395',
             logo: 'logo-camafra.png',
             icon: 'fa-hard-hat',
-            color: '#ff6600',
+            color: '#E8630A',
+            formato: 'propio',
             numeracion: { formato: 'anio' }
         },
         {
@@ -70,6 +72,7 @@
             aprobador: '',
             icon: 'fa-building',
             color: '#9a7520',
+            formato: 'nisira',
             numeracion: { formato: 'serie', serie: '0001', digitos: 7 }
         }
     ];
@@ -200,9 +203,9 @@
             ]
         },
 
-        // ---------------- EDIFICACIONES (formato NISIRA) ----------------
-        edificaciones_oc: {
-            name: 'edificaciones_oc', empresa: 'edificaciones', tipoDoc: 'OC', calculo: 'nisira', archivo: 'nisira',
+        // ---------- FORMATO NISIRA (cualquier empresa con formato 'nisira') ----------
+        nisira_oc: {
+            name: 'nisira_oc', empresa: '*', tipoDoc: 'OC', calculo: 'nisira', archivo: 'nisira',
             displayName: 'Orden de Compra', description: 'Formato NISIRA · Valor venta + IGV', moneda: 'PEN / USD',
             fields: [
                 { name: 'fecha', label: 'Fecha', type: 'date', required: true },
@@ -219,8 +222,8 @@
                 { name: 'observaciones', label: 'Observaciones generales', type: 'textarea', required: false, rows: 2 }
             ]
         },
-        edificaciones_os: {
-            name: 'edificaciones_os', empresa: 'edificaciones', tipoDoc: 'OS', calculo: 'nisira', archivo: 'nisira',
+        nisira_os: {
+            name: 'nisira_os', empresa: '*', tipoDoc: 'OS', calculo: 'nisira', archivo: 'nisira',
             displayName: 'Orden de Servicio', description: 'Formato NISIRA · Valor venta + IGV', moneda: 'PEN / USD',
             fields: [
                 { name: 'fecha', label: 'Fecha', type: 'date', required: true },
@@ -242,5 +245,37 @@
         return EMPRESAS.find(e => e.codigo === codigo) || null;
     }
 
-    return { EMPRESAS, TEMPLATES, PROVEEDOR_AUTOFILL, getEmpresa };
+    /** Une una fila de la tabla `empresas` con los valores por defecto del catálogo. */
+    function normalizarEmpresa(row) {
+        const base = getEmpresa(row.codigo) || {};
+        const formato = row.formato || base.formato || 'nisira';
+        return {
+            ...base,
+            codigo: row.codigo,
+            nombre: row.nombre || base.nombre,
+            razonSocial: row.razon_social || base.razonSocial,
+            ruc: row.ruc || base.ruc,
+            direccion: row.direccion != null ? row.direccion : base.direccion,
+            telefono: row.telefono != null ? row.telefono : base.telefono,
+            email: row.email != null ? row.email : base.email,
+            aprobador: row.aprobador != null ? row.aprobador : base.aprobador,
+            color: row.color || base.color || '#16324F',
+            logoData: row.logo_data || null,
+            firmaData: row.firma_data || null,
+            logo: base.logo || null,
+            firma: base.firma || null,
+            formato,
+            numeracion: formato === 'nisira'
+                ? { formato: 'serie', serie: row.serie || '0001', digitos: 7 }
+                : (base.numeracion || { formato: 'anio' })
+        };
+    }
+
+    /** Plantillas disponibles para una empresa. */
+    function plantillasDe(emp) {
+        return Object.values(TEMPLATES).filter(t =>
+            t.empresa === emp.codigo || (t.empresa === '*' && emp.formato === 'nisira'));
+    }
+
+    return { EMPRESAS, TEMPLATES, PROVEEDOR_AUTOFILL, getEmpresa, normalizarEmpresa, plantillasDe };
 });

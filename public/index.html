@@ -56,6 +56,7 @@
                 <button class="nav-item" data-view="historial"><i class="fas fa-clock-rotate-left"></i><span>Historial</span></button>
                 <button class="nav-item" data-view="proveedores"><i class="fas fa-truck-field"></i><span>Proveedores</span></button>
                 <button class="nav-item" data-view="obras"><i class="fas fa-helmet-safety"></i><span>Obras</span></button>
+                <button class="nav-item" data-view="empresas"><i class="fas fa-building"></i><span>Empresas</span></button>
             </nav>
             <div class="header-right">
                 <div class="header-user-chip" id="headerUserChip" style="display:none">
@@ -120,7 +121,7 @@
                             <dl class="hoja-totales">
                                 <div id="hojaRowVV"><dt>Valor venta</dt><dd id="hojaVV">0.00</dd></div>
                                 <div id="hojaRowIGV"><dt>IGV 18%</dt><dd id="hojaIGV">0.00</dd></div>
-                                <div class="hoja-total"><dt>Total <span id="hojaMoneda">PEN</span></dt><dd id="hojaTotal">0.00</dd></div>
+                                <div class="hoja-total"><dt><button type="button" class="hoja-toggle" id="hojaToggle" aria-expanded="false" aria-controls="hoja">Total <span id="hojaMoneda">PEN</span> <i class="fas fa-chevron-up" aria-hidden="true"></i></button></dt><dd id="hojaTotal">0.00</dd></div>
                             </dl>
                             <p id="hojaSon" class="hoja-son"></p>
                         </div>
@@ -178,6 +179,20 @@
                 <div id="obrasContent" class="sheet"></div>
             </section>
 
+            <!-- EMPRESAS -->
+            <section id="view-empresas" class="view">
+                <div class="page-head">
+                    <div>
+                        <h1>Empresas</h1>
+                        <p>Las empresas que agregues emiten órdenes de compra y de servicio con el formato NISIRA, su logo y su firma.</p>
+                    </div>
+                    <div class="header-tools">
+                        <button class="btn btn-primary btn-sm" id="addEmpresaBtn"><i class="fas fa-plus"></i> Nueva empresa</button>
+                    </div>
+                </div>
+                <div id="empresasContent" class="sheet"></div>
+            </section>
+
         </main>
     </div>
 
@@ -189,11 +204,15 @@
                 <button class="modal-close" onclick="closeModal('proveedorModal')" aria-label="Cerrar"><i class="fas fa-times"></i></button>
             </div>
             <form id="proveedorModalForm" class="modal-body">
-                <div class="form-group"><label class="form-label required" for="pv_razon_social">Razón social</label><input id="pv_razon_social" class="form-control" required></div>
-                <div class="form-grid">
-                    <div class="form-group"><label class="form-label" for="pv_ruc">RUC</label><input id="pv_ruc" class="form-control" inputmode="numeric" maxlength="11"></div>
-                    <div class="form-group"><label class="form-label" for="pv_telefono">Teléfono</label><input id="pv_telefono" class="form-control" inputmode="tel"></div>
+                <div class="form-group">
+                    <label class="form-label" for="pv_ruc">RUC</label>
+                    <div class="input-accion">
+                        <input id="pv_ruc" class="form-control" inputmode="numeric" maxlength="11" autocomplete="off">
+                        <button type="button" class="btn btn-secondary" id="pvSunatBtn"><i class="fas fa-magnifying-glass"></i> SUNAT</button>
+                    </div>
                 </div>
+                <div class="form-group"><label class="form-label required" for="pv_razon_social">Razón social</label><input id="pv_razon_social" class="form-control" required></div>
+                <div class="form-group"><label class="form-label" for="pv_telefono">Teléfono</label><input id="pv_telefono" class="form-control" inputmode="tel"></div>
                 <div class="form-group"><label class="form-label" for="pv_direccion">Dirección</label><input id="pv_direccion" class="form-control"></div>
                 <div class="form-group"><label class="form-label" for="pv_cuenta_corriente">Cuenta corriente</label><input id="pv_cuenta_corriente" class="form-control"></div>
                 <div class="form-grid">
@@ -204,6 +223,72 @@
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('proveedorModal')">Cancelar</button>
                     <button type="submit" class="btn btn-primary" id="pvSaveBtn"><i class="fas fa-save"></i> Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============ MODAL EMPRESA ============ -->
+    <div class="modal" id="empresaModal" role="dialog" aria-modal="true" aria-labelledby="empModalTitle">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="empModalTitle">Nueva empresa</h2>
+                <button class="modal-close" onclick="closeModal('empresaModal')" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="empresaModalForm" class="modal-body" novalidate>
+                <p id="empFormatoPropio" class="nota" hidden>Esta empresa usa su formato propio de PDF: aquí cambias cómo se ve en la app (nombre, logo, color).</p>
+                <div class="form-group">
+                    <label class="form-label required" for="emp_ruc">RUC</label>
+                    <div class="input-accion">
+                        <input id="emp_ruc" class="form-control" inputmode="numeric" maxlength="11" autocomplete="off">
+                        <button type="button" class="btn btn-secondary" id="empSunatBtn"><i class="fas fa-magnifying-glass"></i> SUNAT</button>
+                    </div>
+                </div>
+                <div class="form-group"><label class="form-label required" for="emp_razon">Razón social (como sale en el PDF)</label><input id="emp_razon" class="form-control"></div>
+                <div class="form-group"><label class="form-label" for="emp_nombre">Nombre corto para la app</label><input id="emp_nombre" class="form-control" placeholder="Ej.: Constructora Paita"></div>
+                <div class="form-group"><label class="form-label" for="emp_direccion">Dirección fiscal</label><input id="emp_direccion" class="form-control"></div>
+                <div class="form-grid">
+                    <div class="form-group"><label class="form-label" for="emp_telefono">Teléfono</label><input id="emp_telefono" class="form-control" inputmode="tel"></div>
+                    <div class="form-group"><label class="form-label" for="emp_email">Correo</label><input id="emp_email" type="email" class="form-control"></div>
+                </div>
+                <div class="form-group"><label class="form-label" for="emp_aprobador">Quién aprueba (Vº Bº en el PDF)</label><input id="emp_aprobador" class="form-control"></div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <span class="form-label">Logo</span>
+                        <div class="subir-img">
+                            <img id="emp_logo_prev" alt="Logo" hidden>
+                            <span id="emp_logo_vacio" class="subir-vacio">Sin logo</span>
+                            <label class="btn btn-secondary btn-sm"><i class="fas fa-upload"></i> Subir<input id="emp_logo" type="file" accept="image/png,image/jpeg,image/webp" hidden></label>
+                            <button type="button" id="emp_logo_quitar" class="btn btn-ghost btn-sm" hidden>Quitar</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <span class="form-label">Firma del aprobador (opcional)</span>
+                        <div class="subir-img">
+                            <img id="emp_firma_prev" alt="Firma" hidden>
+                            <span id="emp_firma_vacio" class="subir-vacio">Sin firma</span>
+                            <label class="btn btn-secondary btn-sm"><i class="fas fa-upload"></i> Subir<input id="emp_firma" type="file" accept="image/png,image/jpeg" hidden></label>
+                            <button type="button" id="emp_firma_quitar" class="btn btn-ghost btn-sm" hidden>Quitar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group" id="empSerieGrupo"><label class="form-label" for="emp_serie">Serie</label><input id="emp_serie" class="form-control" inputmode="numeric" maxlength="4"></div>
+                    <div class="form-group"><label class="form-label" for="emp_color">Color en la app</label><input id="emp_color" type="color" class="form-control form-color"></div>
+                </div>
+                <div id="empNumeracionNueva">
+                    <p class="nota">Si ya emitían órdenes en otro sistema, indica el último número usado y la app continuará desde el siguiente.</p>
+                    <div class="form-grid">
+                        <div class="form-group"><label class="form-label" for="emp_ult_oc">Última orden de compra emitida</label><input id="emp_ult_oc" type="number" min="0" class="form-control" inputmode="numeric"></div>
+                        <div class="form-group"><label class="form-label" for="emp_ult_os">Última orden de servicio emitida</label><input id="emp_ult_os" type="number" min="0" class="form-control" inputmode="numeric"></div>
+                    </div>
+                </div>
+                <div id="empModalError" class="form-error" role="alert"></div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('empresaModal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="empSaveBtn"><i class="fas fa-save"></i> Guardar</button>
                 </div>
             </form>
         </div>
@@ -297,6 +382,7 @@
     <script src="js/proveedores.js"></script>
     <script src="js/obras.js"></script>
     <script src="js/historial.js"></script>
+    <script src="js/empresas.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

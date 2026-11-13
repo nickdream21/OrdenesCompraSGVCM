@@ -9,6 +9,7 @@
 --    public/js/supabase-config.js, y URL + service_role a Vercel.
 --
 -- Es idempotente: se puede volver a ejecutar sin perder datos.
+-- Después ejecuta también migracion_v4_empresas.sql (tabla de empresas).
 -- ============================================================
 
 -- ------------------------------------------------------------

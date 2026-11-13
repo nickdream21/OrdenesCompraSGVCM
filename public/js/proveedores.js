@@ -54,9 +54,36 @@ function openProveedorModal(prov, onSaved) {
     document.getElementById('proveedorModal').classList.add('active');
 }
 
-// Usado desde el formulario de OC ("➕ Nuevo proveedor")
-function openNuevoProveedor(onCreated) {
+// Usado desde el formulario de la orden ("Registrar proveedor…"); preset trae el RUC o nombre buscado
+function openNuevoProveedor(onCreated, preset) {
     openProveedorModal(null, onCreated);
+    if (preset && preset.ruc) document.getElementById('pv_ruc').value = preset.ruc;
+    if (preset && preset.razon_social) document.getElementById('pv_razon_social').value = preset.razon_social;
+    setTimeout(() => document.getElementById(preset && preset.ruc ? 'pv_razon_social' : 'pv_ruc').focus(), 60);
+    if (preset && preset.ruc) consultarRucProveedor(true);
+}
+
+// Trae razón social y dirección desde SUNAT (si la consulta está activada)
+async function consultarRucProveedor(silencioso) {
+    const ruc = document.getElementById('pv_ruc').value.trim();
+    const errEl = document.getElementById('pvModalError');
+    const btn = document.getElementById('pvSunatBtn');
+    if (!/^\d{11}$/.test(ruc)) { if (!silencioso) errEl.textContent = 'Escribe un RUC de 11 dígitos.'; return; }
+    errEl.textContent = '';
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    try {
+        const d = await sbConsultarRuc(ruc);
+        document.getElementById('pv_razon_social').value = d.razon_social;
+        if (d.direccion) document.getElementById('pv_direccion').value = d.direccion;
+        const aviso = d.estado && d.estado.toUpperCase() !== 'ACTIVO' ? ` Atención: SUNAT lo reporta ${d.estado}.` : '';
+        showToast('Datos traídos de SUNAT.' + aviso, aviso ? 'warning' : 'success', aviso ? 7000 : 3500);
+    } catch (e) {
+        if (!silencioso || e.status !== 501) {
+            errEl.textContent = e.status === 501 ? 'La consulta a SUNAT no está activada. Completa los datos a mano.' : e.message;
+        }
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-magnifying-glass"></i> SUNAT';
+    }
 }
 
 async function editProveedor(id) {
@@ -90,7 +117,18 @@ async function saveProveedorFromModal() {
             if (error) throw error;
             saved = data;
         } else {
-            const { data, error } = await SB.from('proveedores').insert(record).select().single();
+            // ¿Ya existe ese RUC? Si estaba quitado, se reactiva con los datos nuevos
+            const previo = record.ruc
+                ? (await SB.from('proveedores').select('id,activo,razon_social').eq('ruc', record.ruc).maybeSingle()).data
+                : null;
+            if (previo && previo.activo) {
+                errEl.textContent = `Ese RUC ya está registrado como “${previo.razon_social}”. Búscalo en la lista.`;
+                return;
+            }
+            const q = previo
+                ? SB.from('proveedores').update({ ...record, activo: true }).eq('id', previo.id)
+                : SB.from('proveedores').insert(record);
+            const { data, error } = await q.select().single();
             if (error) throw error;
             saved = data;
         }
@@ -123,4 +161,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addBtn) addBtn.addEventListener('click', () => openProveedorModal(null, renderProveedores));
     const form = document.getElementById('proveedorModalForm');
     if (form) form.addEventListener('submit', (e) => { e.preventDefault(); saveProveedorFromModal(); });
+    const sunat = document.getElementById('pvSunatBtn');
+    if (sunat) sunat.addEventListener('click', () => consultarRucProveedor(false));
 });

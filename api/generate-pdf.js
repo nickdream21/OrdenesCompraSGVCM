@@ -62,6 +62,23 @@ async function obtenerFirma(sb, archivo) {
     return _firmas[archivo];
 }
 
+/** Empresa desde la tabla `empresas`; si la tabla aún no existe, usa el catálogo. */
+async function resolverEmpresa(sb, codigo) {
+    if (!/^[a-z0-9_-]{2,40}$/.test(codigo)) return null;
+    const { data, error } = await sb.from('empresas').select('*').eq('codigo', codigo).maybeSingle();
+    if (error) {
+        const base = catalogo.getEmpresa(codigo);
+        return base ? catalogo.normalizarEmpresa({ codigo }) : null;
+    }
+    if (!data || data.activo === false) return null;
+    return catalogo.normalizarEmpresa(data);
+}
+
+/** Solo acepta imágenes PNG/JPEG/WEBP en base64 (lo demás se ignora). */
+function dataUrlSegura(v) {
+    return typeof v === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(v) ? v : null;
+}
+
 function copiarARed(empresa, anio, mes, nombre, buffer) {
     const base = process.env.SHARED_FOLDER;
     if (!base) return;
@@ -102,8 +119,13 @@ module.exports = async (req, res) => {
         const data = body.data && typeof body.data === 'object' ? body.data : null;
         const tpl = catalogo.TEMPLATES[body.template];
         if (!tpl || !data) return sendJson(res, 400, { error: 'Plantilla o datos inválidos' });
-        const emp = catalogo.getEmpresa(tpl.empresa);
-        if (!emp) return sendJson(res, 400, { error: 'Empresa no configurada' });
+        // Plantillas propias van atadas a su empresa; las NISIRA ('*') sirven a cualquiera con ese formato
+        const codigoEmpresa = tpl.empresa === '*' ? String(body.empresa || '') : tpl.empresa;
+        const emp = await resolverEmpresa(sb, codigoEmpresa);
+        if (!emp) return sendJson(res, 400, { error: 'Empresa no encontrada o inactiva' });
+        if (!catalogo.plantillasDe(emp).some(t => t.name === tpl.name)) {
+            return sendJson(res, 400, { error: 'Esa plantilla no corresponde a la empresa elegida' });
+        }
         if (!Array.isArray(data.items) || data.items.length === 0) {
             return sendJson(res, 400, { error: 'La orden debe tener al menos un item' });
         }
@@ -144,8 +166,8 @@ module.exports = async (req, res) => {
             numero_oc: numero,
             d: data,                 // plantilla NISIRA
             calc, emp, numero, tipoDoc,
-            logo: imagen(emp.logo),
-            firma: await obtenerFirma(sb, emp.firma).catch(() => null),
+            logo: dataUrlSegura(emp.logoData) || imagen(emp.logo),
+            firma: dataUrlSegura(emp.firmaData) || await obtenerFirma(sb, emp.firma).catch(() => null),
             elaborado: creado_por_nombre || creado_por_email || '',
             logoViviana: imagen('logo-viviana.png'),
             logoCamafra: imagen('logo-camafra.png')

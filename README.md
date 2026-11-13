@@ -69,6 +69,21 @@ test/                   npm test
    Luego **Redeploy**.
 7. **Firma del aprobador (opcional):** Storage → bucket `ordenes-pdf` → crear carpeta `_firmas` → subir `firma-edificaciones.png` (PNG con fondo transparente). **No** se sube al repositorio porque es público.
 
+### Empresas (crear y editar desde la app)
+
+Ejecuta una vez `supabase/migracion_v4_empresas.sql` (crea la tabla `empresas` con las tres actuales). Luego, en la sección **Empresas** de la app se agregan empresas nuevas con RUC, razón social, dirección, aprobador, logo, firma, serie y el último número emitido; usan el formato NISIRA (OC y OS). Sin la migración la app sigue funcionando con las tres empresas fijas de `public/js/config.js`.
+
+### Consulta de RUC en SUNAT (opcional)
+
+El botón **SUNAT** (proveedores y empresas) trae razón social y dirección. Se activa con estas variables en Vercel:
+
+| Variable | Valor |
+|---|---|
+| `RUC_API_TOKEN` | token del proveedor de datos (p. ej. Decolecta o apis.net.pe, registro gratuito) |
+| `RUC_API_URL` | opcional; URL con `{ruc}`. Por defecto `https://api.decolecta.com/v1/sunat/ruc?numero={ruc}` |
+
+Sin token, el botón avisa que la consulta no está activa y los datos se escriben a mano.
+
 ### Datos de la empresa Edificaciones
 
 En `public/js/config.js`, empresa `edificaciones`: completar `ruc`, `direccion`, `telefono` y `aprobador` (nombre que aparece en “Vº Bº Aprobado”).

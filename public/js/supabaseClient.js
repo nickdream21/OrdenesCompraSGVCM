@@ -86,3 +86,32 @@ function sbInvalidate(key) {
     if (key) _cache[key] = null;
     else { _cache.obras = null; _cache.proveedores = null; }
 }
+
+// ------------------------------------------------------------
+// Empresas (tabla `empresas`; si aún no existe, catálogo fijo)
+// ------------------------------------------------------------
+let _empresasCache = null;
+async function sbLoadEmpresas(force = false) {
+    if (_empresasCache && !force) return _empresasCache;
+    const { data, error } = await SB.from('empresas').select('*').order('nombre', { ascending: true });
+    if (error) {
+        console.warn('Tabla empresas no disponible, usando catálogo:', error.message);
+        _empresasCache = window.OC_EMPRESAS.map(e => window.OC_CATALOGO.normalizarEmpresa({ codigo: e.codigo }));
+        _empresasCache.sinTabla = true;
+    } else {
+        _empresasCache = data.map(window.OC_CATALOGO.normalizarEmpresa);
+        _empresasCache.forEach((e, i) => { e.activo = data[i].activo !== false; e.serie = data[i].serie; });
+    }
+    return _empresasCache;
+}
+
+// ------------------------------------------------------------
+// Consulta de RUC en SUNAT (vía /api/ruc)
+// ------------------------------------------------------------
+async function sbConsultarRuc(ruc) {
+    const token = await sbGetAccessToken();
+    const r = await fetch(`/api/ruc?numero=${encodeURIComponent(ruc)}`, { headers: { Authorization: `Bearer ${token}` } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error(j.error || `Error ${r.status}`); e.status = r.status; throw e; }
+    return j;
+}

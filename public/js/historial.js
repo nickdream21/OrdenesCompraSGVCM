@@ -2,14 +2,9 @@
 // HISTORIAL DE ÓRDENES (archivo central en Supabase)
 // ============================================================
 
-const _HIST_EMPRESA = Object.fromEntries(window.OC_EMPRESAS.map(e => [e.codigo, e.nombre.toUpperCase()]));
-
 document.addEventListener('DOMContentLoaded', () => {
     const f = document.getElementById('histEmpresa');
-    if (!f) return;
-    f.insertAdjacentHTML('beforeend',
-        window.OC_EMPRESAS.map(e => `<option value="${e.codigo}">${escapeHtml(e.nombre)}</option>`).join(''));
-    f.addEventListener('change', renderHistorial);
+    if (f) f.addEventListener('change', renderHistorial);
 });
 
 async function renderHistorial() {
@@ -38,7 +33,7 @@ async function renderHistorial() {
                   ${data.map(o => `
                     <tr>
                       <td data-label="N° Orden"><span class="badge badge-doc">${escapeHtml(o.tipo_doc || 'OC')}</span><strong>${escapeHtml(o.numero_oc)}</strong></td>
-                      <td data-label="Empresa"><span class="badge">${_HIST_EMPRESA[o.empresa] || o.empresa}</span></td>
+                      <td data-label="Empresa"><span class="badge">${escapeHtml(empresaLabel(o.empresa))}</span></td>
                       <td data-label="Fecha">${o.fecha ? formatDate(o.fecha) : ''}</td>
                       <td data-label="Proveedor">${escapeHtml(o.proveedor_razon_social || '')}</td>
                       <td data-label="Generado por" class="col-autor">${escapeHtml(o.creado_por_nombre || o.creado_por_email || '—')}</td>

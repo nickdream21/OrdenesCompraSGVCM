@@ -10,9 +10,16 @@
     "api/keepalive.js": {
       "memory": 128,
       "maxDuration": 10
+    },
+    "api/ruc.js": {
+      "memory": 128,
+      "maxDuration": 10
     }
   },
   "crons": [
-    { "path": "/api/keepalive", "schedule": "0 13 * * *" }
+    {
+      "path": "/api/keepalive",
+      "schedule": "0 13 * * *"
+    }
   ]
 }

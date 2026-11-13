@@ -30,6 +30,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 app.post('/api/generate-pdf', require('../api/generate-pdf'));
 app.get('/api/keepalive', require('../api/keepalive'));
+app.get('/api/ruc', require('../api/ruc'));
 
 app.listen(config.PORT, '0.0.0.0', () => {
     const ips = Object.values(require('os').networkInterfaces()).flat()

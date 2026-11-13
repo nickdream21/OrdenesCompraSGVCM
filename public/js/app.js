@@ -9,6 +9,7 @@ const appState = {
     optionalFieldsState: {},
     obras: [],
     proveedores: [],
+    empresas: [],
     usuario: null
 };
 
@@ -54,9 +55,9 @@ let _appShown = false;
 async function showApp() {
     document.getElementById('loginView').style.display = 'none';
     document.getElementById('appView').style.display = 'block';
-    renderEmpresas();
-    if (_appShown) return; // evita recargar el usuario en cada evento de sesión
+    if (_appShown) return; // evita recargar en cada evento de sesión
     _appShown = true;
+    cargarEmpresas();
 
     try {
         const user = await sbGetUser();
@@ -183,25 +184,57 @@ function switchView(view) {
     if (view === 'obras' && window.renderObras) renderObras();
     if (view === 'proveedores' && window.renderProveedores) renderProveedores();
     if (view === 'historial' && window.renderHistorial) renderHistorial();
+    if (view === 'empresas' && window.renderEmpresasAdmin) renderEmpresasAdmin();
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ------------------------------------------------------------
 // PASO 1: EMPRESA
 // ------------------------------------------------------------
+// Empresas: se leen de la tabla `empresas` (o del catálogo si aún no existe)
+async function cargarEmpresas(force = false) {
+    try { appState.empresas = await sbLoadEmpresas(force); }
+    catch (_) { appState.empresas = window.OC_EMPRESAS.map(e => window.OC_CATALOGO.normalizarEmpresa({ codigo: e.codigo })); }
+    renderEmpresas();
+    poblarSelectsEmpresa();
+}
+
+function empresasActivas() { return (appState.empresas || []).filter(e => e.activo !== false); }
+function empresaPorCodigo(c) { return (appState.empresas || []).find(e => e.codigo === c) || null; }
+function empresaActual() { return empresaPorCodigo(appState.selectedEmpresa); }
+function empresaLabel(c) { const e = empresaPorCodigo(c) || window.OC_CATALOGO.getEmpresa(c); return e ? e.nombre : c; }
+function logoSrc(e) { return e.logoData || (e.logo ? `images/${e.logo}` : ''); }
+function iniciales(nombre) { return String(nombre || '?').split(/\s+/).filter(w => w.length > 2).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'; }
+function logoHTML(e, clase) {
+    const src = logoSrc(e);
+    return src ? `<img class="${clase}" src="${escapeHtml(src)}" alt="">`
+        : `<span class="${clase} logo-iniciales" style="--emp:${escapeHtml(e.color)}">${escapeHtml(iniciales(e.nombre))}</span>`;
+}
+
+function poblarSelectsEmpresa() {
+    const opts = empresasActivas().map(e => `<option value="${escapeHtml(e.codigo)}">${escapeHtml(e.nombre)}</option>`).join('');
+    const ob = document.getElementById('ob_empresa');
+    if (ob) ob.innerHTML = '<option value="">Elige…</option>' + opts;
+    const h = document.getElementById('histEmpresa');
+    if (h) { const v = h.value; h.innerHTML = '<option value="">Todas las empresas</option>' + opts; h.value = v; }
+}
+
 function renderEmpresas() {
     const cont = document.getElementById('empresaSelector');
-    if (cont.dataset.rendered) return;
-    cont.innerHTML = window.OC_EMPRESAS.map(e => `
-        <button type="button" class="empresa-card" role="radio" aria-checked="false"
-                data-empresa="${e.codigo}" style="--emp:${e.color}">
-            <img class="empresa-logo" src="images/${e.logo}" alt="">
+    cont.innerHTML = empresasActivas().map(e => `
+        <button type="button" class="empresa-card${e.codigo === appState.selectedEmpresa ? ' selected' : ''}" role="radio"
+                aria-checked="${e.codigo === appState.selectedEmpresa}" data-empresa="${escapeHtml(e.codigo)}" style="--emp:${escapeHtml(e.color)}">
+            ${logoHTML(e, 'empresa-logo')}
             <span class="empresa-nombre">${escapeHtml(e.nombre)}</span>
-            <span class="empresa-ruc">RUC ${e.ruc}</span>
+            <span class="empresa-ruc">RUC ${escapeHtml(e.ruc)}</span>
         </button>
-    `).join('');
-    cont.dataset.rendered = '1';
-    cont.querySelectorAll('.empresa-card').forEach(card => {
+    `).join('') + `
+        <button type="button" class="empresa-card empresa-nueva" onclick="openEmpresaModal(null)">
+            <span class="empresa-logo logo-mas" aria-hidden="true"><i class="fas fa-plus"></i></span>
+            <span class="empresa-nombre">Agregar empresa</span>
+            <span class="empresa-ruc">Usará el formato NISIRA</span>
+        </button>`;
+    cont.querySelectorAll('.empresa-card[data-empresa]').forEach(card => {
         card.addEventListener('click', () => selectEmpresa(card.dataset.empresa));
     });
 }
@@ -237,7 +270,7 @@ async function selectEmpresa(empresa) {
     document.getElementById('hoja').hidden = true;
 
     // Si la empresa tiene un solo tipo de orden, se elige solo
-    const tipos = Object.values(window.OC_TEMPLATES).filter(t => t.empresa === empresa);
+    const tipos = window.OC_CATALOGO.plantillasDe(empresaActual());
     if (tipos.length === 1) selectTipoOC(tipos[0].name);
     else document.getElementById('tipoOCSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -247,7 +280,7 @@ async function selectEmpresa(empresa) {
 // ------------------------------------------------------------
 function renderTiposOC(empresa) {
     const cont = document.getElementById('tipoOCSelector');
-    const tipos = Object.values(window.OC_TEMPLATES).filter(t => t.empresa === empresa);
+    const tipos = window.OC_CATALOGO.plantillasDe(empresaPorCodigo(empresa));
     cont.innerHTML = tipos.map(t => `
         <button type="button" class="tipo-oc-card" role="radio" aria-checked="false" data-template="${t.name}">
             <span class="tipo-oc-nombre">${escapeHtml(t.displayName)}</span>
@@ -382,10 +415,8 @@ function generateFieldHTML(field) {
     if (field.source === 'proveedor') {
         return `
             <div class="form-group span-2">
-                <label class="form-label ${reqClass}" for="proveedor_razon_social">${field.label}</label>
-                <select class="form-control" id="proveedor_razon_social" name="proveedor_razon_social" ${reqAttr}>
-                    <option value="">Elige un proveedor…</option>
-                </select>
+                <label class="form-label ${reqClass}">${field.label}</label>
+                <div id="proveedor-cs-wrapper" class="cs-wrapper"></div>
             </div>`;
     }
 
@@ -455,6 +486,9 @@ function restaurarSnapshot(s) {
             if (ta) ta.style.display = 'block';
         }
     }
+    if (s.campos.proveedor_razon_social && _comboProveedor) {
+        _comboProveedor.fijar(s.campos.proveedor_razon_social, s.campos.proveedor_razon_social);
+    }
     const field = appState.selectedTemplateConfig.fields.find(f => f.type === 'array');
     if (field && s.items.length) {
         const cont = document.getElementById(`array_${field.name}`);
@@ -464,153 +498,174 @@ function restaurarSnapshot(s) {
     actualizarHoja();
 }
 
-// ---- Custom Select de OBRA ----
-function populateObraSelect() {
-    const wrapper = document.getElementById('obra-cs-wrapper');
-    if (!wrapper) return;
-    const obras = appState.obras || [];
-    const options = obras.map(o => ({ value: o.nombre, label: o.nombre }));
-    options.push({ value: '__otra__', label: 'Otra obra (escribir)', isOther: true });
-    buildObraCustomSelect(wrapper, options);
-}
+// ------------------------------------------------------------
+// BUSCADOR DESPLEGABLE (obra y proveedor)
+// Escritorio: lista bajo el campo. Móvil: hoja inferior con buscador.
+// ------------------------------------------------------------
+const _normaliza = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+let _comboAbierto = null;
+document.addEventListener('click', (e) => {
+    if (_comboAbierto && !_comboAbierto.wrapper.contains(e.target)) _comboAbierto.cerrar();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && _comboAbierto) _comboAbierto.cerrar();
+});
 
-function buildObraCustomSelect(wrapper, options) {
+/**
+ * @param {HTMLElement} wrapper
+ * @param {object} cfg { hiddenId, placeholder, titulo, buscarPlaceholder, opciones:[{value,label,sub,data}],
+ *                       extra:{label, icon} (opción fija al final), onPick(opt, consulta), vacio }
+ */
+function crearCombo(wrapper, cfg) {
     wrapper.innerHTML = `
         <button type="button" class="cs-trigger" aria-haspopup="listbox" aria-expanded="false">
-            <span class="cs-value cs-value--placeholder">Elige una obra…</span>
+            <span class="cs-value cs-value--placeholder">${escapeHtml(cfg.placeholder)}</span>
             <i class="fas fa-chevron-down cs-arrow" aria-hidden="true"></i>
         </button>
-        <input type="hidden" id="obra" name="obra">
+        <input type="hidden" id="${cfg.hiddenId}" name="${cfg.hiddenId}">
         <div class="cs-backdrop"></div>
-        <div class="cs-panel" role="listbox" aria-label="Seleccione una obra">
+        <div class="cs-panel" role="dialog" aria-label="${escapeHtml(cfg.titulo)}">
             <div class="cs-panel-header">
-                <span class="cs-panel-title">Seleccionar obra</span>
-                <button type="button" class="cs-close" aria-label="Cerrar">
-                    <i class="fas fa-times"></i>
-                </button>
+                <span class="cs-panel-title">${escapeHtml(cfg.titulo)}</span>
+                <button type="button" class="cs-close" aria-label="Cerrar"><i class="fas fa-times"></i></button>
             </div>
             <div class="cs-search-wrapper">
                 <i class="fas fa-search cs-search-icon" aria-hidden="true"></i>
-                <input type="text" class="cs-search" placeholder="Buscar obra..." autocomplete="off" aria-label="Buscar">
+                <input type="search" class="cs-search" placeholder="${escapeHtml(cfg.buscarPlaceholder)}"
+                       autocomplete="off" aria-label="${escapeHtml(cfg.buscarPlaceholder)}">
             </div>
-            <div class="cs-options">
-                ${options.map(opt => `
-                    <div class="cs-option${opt.isOther ? ' cs-option-other' : ''}"
-                         data-value="${escapeHtml(opt.value)}" role="option" tabindex="0">
-                        ${opt.isOther ? '<i class="fas fa-pencil" aria-hidden="true"></i>' : ''}<span>${escapeHtml(opt.label)}</span>
-                    </div>
-                `).join('')}
-            </div>
+            <div class="cs-options" role="listbox"></div>
         </div>`;
 
-    const trigger    = wrapper.querySelector('.cs-trigger');
-    const valueSpan  = wrapper.querySelector('.cs-value');
-    const backdrop   = wrapper.querySelector('.cs-backdrop');
-    const search     = wrapper.querySelector('.cs-search');
-    const optsList   = wrapper.querySelector('.cs-options');
-    const closeBtn   = wrapper.querySelector('.cs-close');
-    const hidden     = wrapper.querySelector('#obra');
+    const trigger = wrapper.querySelector('.cs-trigger');
+    const valor = wrapper.querySelector('.cs-value');
+    const hidden = wrapper.querySelector('input[type=hidden]');
+    const buscar = wrapper.querySelector('.cs-search');
+    const lista = wrapper.querySelector('.cs-options');
+    const indice = cfg.opciones.map(o => ({ o, t: _normaliza(o.label + ' ' + (o.sub || '')) }));
 
-    const openPanel = () => {
-        wrapper.classList.add('cs-open');
-        trigger.setAttribute('aria-expanded', 'true');
-        setTimeout(() => search.focus(), 80);
+    const pintar = (q) => {
+        const qn = _normaliza(q).trim();
+        const visibles = qn ? indice.filter(x => x.t.includes(qn)).map(x => x.o) : cfg.opciones;
+        lista.innerHTML = visibles.slice(0, 80).map((o, i) => `
+            <div class="cs-option${o.value === hidden.value ? ' selected' : ''}" role="option" tabindex="0" data-i="${cfg.opciones.indexOf(o)}">
+                <span class="cs-opt-label">${escapeHtml(o.label)}</span>
+                ${o.sub ? `<span class="cs-opt-sub">${escapeHtml(o.sub)}</span>` : ''}
+            </div>`).join('')
+            + (!visibles.length ? `<div class="cs-no-results">${escapeHtml(cfg.vacio ? cfg.vacio(q) : 'Sin resultados')}</div>` : '')
+            + (cfg.extra ? `<div class="cs-option cs-option-other" role="option" tabindex="0" data-extra="1">
+                    <i class="fas ${cfg.extra.icon}" aria-hidden="true"></i><span class="cs-opt-label">${escapeHtml(typeof cfg.extra.label === 'function' ? cfg.extra.label(q) : cfg.extra.label)}</span></div>` : '');
     };
 
-    const closePanel = () => {
-        wrapper.classList.remove('cs-open');
-        trigger.setAttribute('aria-expanded', 'false');
-        search.value = '';
-        filterOpts('');
-    };
-
-    const filterOpts = (q) => {
-        const ql = q.toLowerCase();
-        let any = false;
-        optsList.querySelectorAll('.cs-option').forEach(opt => {
-            const match = !ql || opt.textContent.toLowerCase().includes(ql);
-            opt.hidden = !match;
-            if (match) any = true;
-        });
-        let noRes = optsList.querySelector('.cs-no-results');
-        if (!any) {
-            if (!noRes) { noRes = document.createElement('div'); noRes.className = 'cs-no-results'; noRes.textContent = 'Sin resultados'; optsList.appendChild(noRes); }
-        } else if (noRes) noRes.remove();
-    };
-
-    const pickValue = (value, label) => {
-        hidden.value = value;
-        valueSpan.textContent = label;
-        valueSpan.classList.remove('cs-value--placeholder');
-        optsList.querySelectorAll('.cs-option').forEach(o =>
-            o.classList.toggle('selected', o.dataset.value === value)
-        );
-        const otraTA = document.getElementById('obra_otra');
-        if (value === '__otra__') {
-            if (otraTA) { otraTA.style.display = 'block'; otraTA.required = true; setTimeout(() => otraTA.focus(), 50); }
-        } else {
-            if (otraTA) { otraTA.style.display = 'none'; otraTA.required = false; otraTA.value = ''; }
+    const api = {
+        wrapper,
+        abrir() {
+            if (_comboAbierto && _comboAbierto !== api) _comboAbierto.cerrar();
+            _comboAbierto = api;
+            wrapper.classList.add('cs-open');
+            trigger.setAttribute('aria-expanded', 'true');
+            document.body.classList.add('combo-abierto');
+            pintar('');
+            setTimeout(() => buscar.focus(), 60);
+        },
+        cerrar() {
+            wrapper.classList.remove('cs-open');
+            trigger.setAttribute('aria-expanded', 'false');
+            document.body.classList.remove('combo-abierto');
+            buscar.value = '';
+            if (_comboAbierto === api) _comboAbierto = null;
+        },
+        fijar(value, label) {
+            hidden.value = value;
+            valor.textContent = label || cfg.placeholder;
+            valor.classList.toggle('cs-value--placeholder', !label);
         }
-        closePanel();
     };
 
-    trigger.addEventListener('click', () => wrapper.classList.contains('cs-open') ? closePanel() : openPanel());
-    backdrop.addEventListener('click', closePanel);
-    closeBtn.addEventListener('click', closePanel);
-    search.addEventListener('input', () => filterOpts(search.value));
+    const elegir = (el) => {
+        const q = buscar.value;
+        if (el.dataset.extra) { api.cerrar(); cfg.onPick(null, q); return; }
+        const o = cfg.opciones[+el.dataset.i];
+        api.fijar(o.value, o.label);
+        api.cerrar();
+        cfg.onPick(o, q);
+    };
 
-    optsList.addEventListener('click', e => {
-        const opt = e.target.closest('.cs-option');
-        if (opt && !opt.hidden) pickValue(opt.dataset.value, opt.querySelector('span').textContent.trim());
-    });
-    optsList.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            const opt = e.target.closest('.cs-option');
-            if (opt && !opt.hidden) { e.preventDefault(); pickValue(opt.dataset.value, opt.querySelector('span').textContent.trim()); }
+    trigger.addEventListener('click', () => wrapper.classList.contains('cs-open') ? api.cerrar() : api.abrir());
+    wrapper.querySelector('.cs-backdrop').addEventListener('click', api.cerrar);
+    wrapper.querySelector('.cs-close').addEventListener('click', api.cerrar);
+    buscar.addEventListener('input', () => pintar(buscar.value));
+    buscar.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); const f = lista.querySelector('.cs-option'); if (f) f.focus(); }
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const opciones = lista.querySelectorAll('.cs-option:not(.cs-option-other)');
+            if (opciones.length === 1) elegir(opciones[0]);
         }
     });
-
-    // Un solo par de listeners globales (antes se acumulaban en cada re-render)
-    if (_obraDocHandlers) {
-        document.removeEventListener('click', _obraDocHandlers.click);
-        document.removeEventListener('keydown', _obraDocHandlers.key);
-    }
-    _obraDocHandlers = {
-        click: e => { if (!wrapper.contains(e.target) && wrapper.classList.contains('cs-open')) closePanel(); },
-        key: e => { if (e.key === 'Escape' && wrapper.classList.contains('cs-open')) closePanel(); }
-    };
-    document.addEventListener('click', _obraDocHandlers.click);
-    document.addEventListener('keydown', _obraDocHandlers.key);
+    lista.addEventListener('click', (e) => { const el = e.target.closest('.cs-option'); if (el) elegir(el); });
+    lista.addEventListener('keydown', (e) => {
+        const el = e.target.closest('.cs-option');
+        if (!el) return;
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); elegir(el); }
+        if (e.key === 'ArrowDown' && el.nextElementSibling) { e.preventDefault(); el.nextElementSibling.focus(); }
+        if (e.key === 'ArrowUp') { e.preventDefault(); (el.previousElementSibling || buscar).focus(); }
+    });
+    return api;
 }
-let _obraDocHandlers = null;
 
-// ---- Select de PROVEEDOR (con autocompletado) ----
-function populateProveedorSelect() {
-    const sel = document.getElementById('proveedor_razon_social');
-    if (!sel) return;
-    const provs = appState.proveedores || [];
-    sel.innerHTML = `<option value="">Elige un proveedor…</option>`
-        + provs.map(p => `<option value="${escapeHtml(p.razon_social)}" data-id="${p.id}">${escapeHtml(p.razon_social)}</option>`).join('')
-        + `<option value="__nuevo__">+ Registrar proveedor nuevo</option>`;
-
-    sel.onchange = () => {
-        if (sel.value === '__nuevo__') {
-            sel.value = '';
-            if (window.openNuevoProveedor) {
-                window.openNuevoProveedor(async (nuevo) => {
-                    appState.proveedores = await sbLoadProveedores(true);
-                    populateProveedorSelect();
-                    sel.value = nuevo.razon_social;
-                    applyProveedorAutofill(nuevo);
-                });
-            }
-            return;
+// ---- Obra ----
+function populateObraSelect() {
+    const wrapper = document.getElementById('obra-cs-wrapper');
+    if (!wrapper) return;
+    const otra = () => document.getElementById('obra_otra');
+    crearCombo(wrapper, {
+        hiddenId: 'obra',
+        placeholder: 'Elige una obra…',
+        titulo: 'Elegir obra',
+        buscarPlaceholder: 'Buscar obra',
+        opciones: (appState.obras || []).map(o => ({ value: o.nombre, label: o.nombre, sub: o.direccion || '' })),
+        extra: { label: 'Otra obra (escribirla)', icon: 'fa-pencil' },
+        vacio: () => 'No hay obras con ese nombre.',
+        onPick: (o) => {
+            const ta = otra();
+            if (!o) {
+                document.getElementById('obra').value = '__otra__';
+                wrapper.querySelector('.cs-value').textContent = 'Otra obra';
+                wrapper.querySelector('.cs-value').classList.remove('cs-value--placeholder');
+                if (ta) { ta.style.display = 'block'; ta.required = true; setTimeout(() => ta.focus(), 50); }
+            } else if (ta) { ta.style.display = 'none'; ta.required = false; ta.value = ''; }
+            actualizarHoja();
         }
-        const opt = sel.options[sel.selectedIndex];
-        const id = opt && opt.dataset ? opt.dataset.id : null;
-        const prov = (appState.proveedores || []).find(p => String(p.id) === String(id));
-        if (prov) applyProveedorAutofill(prov);
-    };
+    });
+}
+
+// ---- Proveedor: buscar por nombre o RUC ----
+let _comboProveedor = null;
+function populateProveedorSelect() {
+    const wrapper = document.getElementById('proveedor-cs-wrapper');
+    if (!wrapper) return;
+    const provs = appState.proveedores || [];
+    _comboProveedor = crearCombo(wrapper, {
+        hiddenId: 'proveedor_razon_social',
+        placeholder: 'Busca por nombre o RUC…',
+        titulo: 'Elegir proveedor',
+        buscarPlaceholder: 'Nombre o RUC del proveedor',
+        opciones: provs.map(p => ({ value: p.razon_social, label: p.razon_social, sub: p.ruc ? `RUC ${p.ruc}` : 'Sin RUC', data: p })),
+        extra: { label: (q) => /^\d{11}$/.test(q.trim()) ? `Registrar proveedor con RUC ${q.trim()}` : 'Registrar proveedor nuevo', icon: 'fa-plus' },
+        vacio: (q) => /^\d{11}$/.test(q.trim()) ? 'Ese RUC no está registrado todavía.' : 'Sin coincidencias.',
+        onPick: (o, q) => {
+            if (o) { applyProveedorAutofill(o.data); actualizarHoja(); return; }
+            const preset = /^\d{11}$/.test((q || '').trim()) ? { ruc: q.trim() } : (q ? { razon_social: q.trim() } : null);
+            window.openNuevoProveedor(async (nuevo) => {
+                appState.proveedores = await sbLoadProveedores(true);
+                populateProveedorSelect();
+                _comboProveedor.fijar(nuevo.razon_social, nuevo.razon_social);
+                applyProveedorAutofill(nuevo);
+                actualizarHoja();
+            }, preset);
+        }
+    });
 }
 
 function applyProveedorAutofill(prov) {
@@ -756,10 +811,11 @@ function leerItems() {
 
 function prepararHoja() {
     const cfg = appState.selectedTemplateConfig;
-    const emp = window.OC_CATALOGO.getEmpresa(cfg.empresa);
+    const emp = empresaActual();
     const hoja = document.getElementById('hoja');
     hoja.hidden = false;
-    document.getElementById('hojaLogo').src = `images/${emp.logo}`;
+    const hl = document.getElementById('hojaLogo');
+    hl.src = logoSrc(emp); hl.hidden = !hl.src;
     document.getElementById('hojaRuc').textContent = `RUC ${emp.ruc}`;
     document.getElementById('hojaTipo').textContent = cfg.tipoDoc === 'OS' ? 'ORDEN DE SERVICIO' : 'ORDEN DE COMPRA';
     const num = document.getElementById('hojaNumero');
@@ -1054,6 +1110,13 @@ function filtrarFilas(inputId, contId) {
 }
 document.addEventListener('DOMContentLoaded', () => {
     filtrarFilas('pvBuscar', 'proveedoresContent');
+    // Móvil: tocar el total abre/cierra el resumen completo
+    document.getElementById('hojaToggle').addEventListener('click', () => {
+        if (!window.matchMedia('(max-width: 860px)').matches) return;
+        const h = document.getElementById('hoja');
+        const abierta = h.classList.toggle('abierta');
+        document.getElementById('hojaToggle').setAttribute('aria-expanded', abierta);
+    });
     filtrarFilas('histBuscar', 'historialContent');
 });
 

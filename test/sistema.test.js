@@ -45,7 +45,7 @@ test('cálculo importación: sin IGV y en USD', () => {
 
 test('catálogo: cada plantilla tiene empresa válida y archivo .ejs', () => {
     for (const t of Object.values(catalogo.TEMPLATES)) {
-        assert.ok(catalogo.getEmpresa(t.empresa), `empresa inexistente en ${t.name}`);
+        assert.ok(t.empresa === '*' || catalogo.getEmpresa(t.empresa), `empresa inexistente en ${t.name}`);
         assert.ok(['OC', 'OS'].includes(t.tipoDoc), `tipoDoc inválido en ${t.name}`);
         const file = path.join(TEMPLATES_DIR, `${t.archivo || t.name}.ejs`);
         assert.ok(fs.existsSync(file), `falta ${file}`);
@@ -59,7 +59,7 @@ test('todas las plantillas renderizan con datos mínimos', () => {
             if (f.type === 'array') continue;
             data[f.name] = f.type === 'checkbox' ? false : (f.type === 'date' ? '2026-11-13' : 'X');
         }
-        const emp = catalogo.getEmpresa(t.empresa);
+        const emp = catalogo.normalizarEmpresa({ codigo: t.empresa === '*' ? 'edificaciones' : t.empresa });
         const calc = calcular(t.calculo, data, t.moneda);
         const html = renderHtml(t.archivo || t.name, {
             ...data, numero_oc: 'T-1', d: data, calc, emp, numero: 'T-1', tipoDoc: t.tipoDoc,
@@ -68,4 +68,14 @@ test('todas las plantillas renderizan con datos mínimos', () => {
         assert.match(html, /<\/html>/i, t.name);
         assert.ok(!html.includes('PRUEBA <b>'), `${t.name}: el texto del usuario debe ir escapado`);
     }
+});
+
+test('empresas: formato decide las plantillas disponibles', () => {
+    const nueva = catalogo.normalizarEmpresa({ codigo: 'constructora-paita', nombre: 'Constructora Paita', razon_social: 'CONSTRUCTORA PAITA SAC', ruc: '20123456789', serie: '0002' });
+    assert.equal(nueva.formato, 'nisira');
+    assert.deepEqual(nueva.numeracion, { formato: 'serie', serie: '0002', digitos: 7 });
+    assert.deepEqual(catalogo.plantillasDe(nueva).map(t => t.name).sort(), ['nisira_oc', 'nisira_os']);
+    const viv = catalogo.normalizarEmpresa({ codigo: 'viviana', formato: 'propio' });
+    assert.deepEqual(catalogo.plantillasDe(viv).map(t => t.name).sort(), ['viviana_importacion', 'viviana_nacional']);
+    assert.equal(viv.numeracion.formato, 'anio');
 });
