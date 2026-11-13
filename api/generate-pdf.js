@@ -1,70 +1,26 @@
 // ============================================================
-// FUNCIÓN SERVERLESS (Vercel) - Generación de PDF de OC
+// FUNCIÓN SERVERLESS (Vercel) - Generación de PDF de OC / OS
 // ============================================================
-// Reutiliza EXACTAMENTE las plantillas templates/*.ejs y Puppeteer,
-// para que el PDF sea idéntico al del sistema local.
-//
 // Flujo:
-//   1. Verifica la sesión (token de Supabase) -> rechaza si no hay login.
-//   2. Reserva el correlativo de forma atómica (RPC siguiente_correlativo).
-//   3. Renderiza el EJS y genera el PDF con chromium serverless.
-//   4. Sube el PDF a Supabase Storage e inserta el registro en `ordenes`.
-//   5. Devuelve el PDF para que el navegador lo descargue.
+//   1. Verifica la sesión (token de Supabase) -> 401 si no hay login.
+//   2. Valida la plantilla contra el catálogo (public/js/config.js):
+//      la EMPRESA se deduce de la plantilla, no se confía en el cliente.
+//   3. Calcula importes en el servidor (lib/calculo.js).
+//   4. Reserva el correlativo (RPC atómica). Si el PDF falla, lo libera.
+//   5. Renderiza EJS -> PDF, lo sube a Storage y registra en `ordenes`.
+//   6. Devuelve el PDF. Si el archivo/registro falló, avisa en
+//      la cabecera X-Advertencia (antes se perdía en silencio).
 //
-// Variables de entorno requeridas en Vercel:
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE
+// Variables de entorno: SUPABASE_URL, SUPABASE_SERVICE_ROLE
+// Opcional (solo servidor local): SHARED_FOLDER = carpeta de red de respaldo
 // ============================================================
 
 const fs = require('fs');
 const path = require('path');
-const ejs = require('ejs');
-const moment = require('moment');
-const chromium = require('@sparticuz/chromium');
-const puppeteer = require('puppeteer-core');
 const { createClient } = require('@supabase/supabase-js');
-
-moment.locale('es');
-
-const ROOT = process.cwd();
-const TEMPLATES_DIR = path.join(ROOT, 'templates');
-const IMAGES_DIR = path.join(ROOT, 'public', 'images');
-
-// Cache a nivel de módulo (se reutiliza en invocaciones "calientes")
-let _browser = null;
-let _logos = null;
-
-function loadLogos() {
-    if (_logos) return _logos;
-    const read = (file) => {
-        try {
-            const p = path.join(IMAGES_DIR, file);
-            if (fs.existsSync(p)) return `data:image/png;base64,${fs.readFileSync(p).toString('base64')}`;
-        } catch (_) {}
-        return null;
-    };
-    _logos = { viviana: read('logo-viviana.png'), camafra: read('logo-camafra.png') };
-    return _logos;
-}
-
-async function getBrowser() {
-    if (_browser && _browser.connected) return _browser;
-    _browser = await puppeteer.launch({
-        args: chromium.args,
-        defaultViewport: chromium.defaultViewport,
-        executablePath: await chromium.executablePath(),
-        headless: chromium.headless
-    });
-    return _browser;
-}
-
-function formatNumber(value, decimals = 2) {
-    const num = parseFloat(value) || 0;
-    return num.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-function formatCurrency(value, currency = 'S/.') {
-    const num = parseFloat(value) || 0;
-    return `${currency} ${num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-}
+const catalogo = require('../public/js/config.js');
+const { calcular } = require('../lib/calculo');
+const { renderHtml, htmlToPdf, imagen } = require('../lib/pdf');
 
 function readBody(req) {
     return new Promise((resolve) => {
@@ -77,132 +33,179 @@ function readBody(req) {
     });
 }
 
+function sendJson(res, status, obj) {
+    res.statusCode = status;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify(obj));
+}
+
+/** Número visible en el PDF según el formato de la empresa. */
+function formatearNumero(emp, anio, n) {
+    const num = emp.numeracion || { formato: 'anio' };
+    if (num.formato === 'serie') {
+        return `${num.serie || '0001'} - ${String(n).padStart(num.digitos || 7, '0')}`;
+    }
+    return `${anio}-${String(n).padStart(6, '0')}`;
+}
+
+// La firma escaneada NO va en el repositorio (es público): se guarda en el
+// bucket privado como  ordenes-pdf/_firmas/<archivo>.png  y se cachea aquí.
+const _firmas = {};
+async function obtenerFirma(sb, archivo) {
+    if (!archivo) return null;
+    const local = imagen(archivo);           // permite una copia local (ignorada por git)
+    if (local) return local;
+    if (archivo in _firmas) return _firmas[archivo];
+    const { data, error } = await sb.storage.from('ordenes-pdf').download(`_firmas/${archivo}`);
+    _firmas[archivo] = (error || !data) ? null
+        : `data:image/png;base64,${Buffer.from(await data.arrayBuffer()).toString('base64')}`;
+    return _firmas[archivo];
+}
+
+function copiarARed(empresa, anio, mes, nombre, buffer) {
+    const base = process.env.SHARED_FOLDER;
+    if (!base) return;
+    try {
+        const dir = path.join(base, empresa, String(anio), mes);
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, nombre), buffer);
+    } catch (e) {
+        console.warn('No se pudo copiar a la carpeta de red:', e.message);
+    }
+}
+
 module.exports = async (req, res) => {
-    // CORS (por si el front se sirve en otro origen durante pruebas)
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Expose-Headers', 'X-Numero-OC');
-    if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
-    if (req.method !== 'POST') { res.statusCode = 405; return res.json({ error: 'Método no permitido' }); }
+    if (req.method !== 'POST') return sendJson(res, 405, { error: 'Método no permitido' });
 
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
     if (!SUPABASE_URL || !SERVICE_ROLE) {
-        res.statusCode = 500;
-        return res.json({ error: 'Faltan variables de entorno SUPABASE_URL / SUPABASE_SERVICE_ROLE' });
+        return sendJson(res, 500, { error: 'Faltan variables de entorno SUPABASE_URL / SUPABASE_SERVICE_ROLE' });
     }
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-    let page = null;
+    let reserva = null; // { empresa, tipo, periodo, n } para liberar si algo falla
     try {
-        // 1) Autenticación: token de sesión Supabase
+        // 1) Autenticación
         const authHeader = req.headers['authorization'] || '';
         const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-        if (!token) { res.statusCode = 401; return res.json({ error: 'No autenticado' }); }
+        if (!token) return sendJson(res, 401, { error: 'No autenticado' });
         const { data: userData, error: userErr } = await sb.auth.getUser(token);
-        if (userErr || !userData || !userData.user) { res.statusCode = 401; return res.json({ error: 'Sesión inválida' }); }
-        const creado_por_email = userData.user.email || null;
-        const creado_por_nombre = userData.user.user_metadata?.nombre || null;
+        if (userErr || !userData || !userData.user) return sendJson(res, 401, { error: 'Sesión inválida' });
+        const user = userData.user;
+        const creado_por_email = user.email || null;
+        const creado_por_nombre = (user.user_metadata && user.user_metadata.nombre) || null;
 
-        // 2) Datos de entrada
+        // 2) Validación contra el catálogo
         const body = await readBody(req);
-        const { template, data, empresa } = body;
         const preview = !!body.preview;
-        if (!template || !data || !empresa) {
-            res.statusCode = 400;
-            return res.json({ error: 'template, data y empresa son requeridos' });
+        const data = body.data && typeof body.data === 'object' ? body.data : null;
+        const tpl = catalogo.TEMPLATES[body.template];
+        if (!tpl || !data) return sendJson(res, 400, { error: 'Plantilla o datos inválidos' });
+        const emp = catalogo.getEmpresa(tpl.empresa);
+        if (!emp) return sendJson(res, 400, { error: 'Empresa no configurada' });
+        if (!Array.isArray(data.items) || data.items.length === 0) {
+            return sendJson(res, 400, { error: 'La orden debe tener al menos un item' });
         }
-        const templatePath = path.join(TEMPLATES_DIR, `${template}.ejs`);
-        if (!fs.existsSync(templatePath)) { res.statusCode = 404; return res.json({ error: 'Plantilla no encontrada' }); }
+        if (typeof data.fecha !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.fecha)) {
+            return sendJson(res, 400, { error: 'Fecha inválida' });
+        }
 
-        // 3) Correlativo: en vista previa NO se reserva ni se archiva
-        const anio = (typeof data.fecha === 'string' && /^\d{4}/.test(data.fecha))
-            ? parseInt(data.fecha.slice(0, 4), 10)
-            : new Date().getFullYear();
-        const mes = (typeof data.fecha === 'string' && data.fecha.length >= 7)
-            ? data.fecha.slice(5, 7)
-            : String(new Date().getMonth() + 1).padStart(2, '0');
+        // Toda variable que la plantilla usa debe existir (EJS lanza ReferenceError si falta)
+        for (const f of tpl.fields) {
+            if (f.type === 'array' || data[f.name] !== undefined) continue;
+            data[f.name] = f.type === 'checkbox' ? false : '';
+        }
+
+        const tipoDoc = tpl.tipoDoc || 'OC';
+        const anio = parseInt(data.fecha.slice(0, 4), 10);
+        const mes = data.fecha.slice(5, 7);
+        const periodo = (emp.numeracion && emp.numeracion.formato === 'serie') ? 0 : anio;
+
+        // 3) Importes
+        const calc = calcular(tpl.calculo, data, tpl.moneda);
+
+        // 4) Correlativo (no en vista previa)
         let correlativo = null;
-        let numero_oc;
-        if (preview) {
-            numero_oc = 'BORRADOR';
-        } else {
-            const { data: corr, error: corrErr } = await sb.rpc('siguiente_correlativo', { p_empresa: empresa, p_anio: anio });
-            if (corrErr) throw new Error('No se pudo reservar el correlativo: ' + corrErr.message);
-            correlativo = corr;
-            numero_oc = `${anio}-${String(correlativo).padStart(6, '0')}`;
-        }
-        data.numero_oc = numero_oc;
-
-        // 4) Render EJS -> PDF (idéntico al sistema local)
-        const logos = loadLogos();
-        const templateContent = fs.readFileSync(templatePath, 'utf-8');
-        const html = ejs.render(templateContent, {
-            ...data,
-            moment,
-            logoViviana: logos.viviana,
-            logoCamafra: logos.camafra,
-            formatCurrency,
-            formatNumber
-        });
-
-        const browser = await getBrowser();
-        page = await browser.newPage();
-        await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
-        const pdfBuffer = await page.pdf({
-            format: 'A4',
-            printBackground: true,
-            preferCSSPageSize: true,
-            margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' }
-        });
-
-        // 5) Totales para el registro del historial
-        const items = Array.isArray(data.items) ? data.items : [];
-        let subtotal = 0;
-        items.forEach((it) => { subtotal += (parseFloat(it.cantidad) || 0) * (parseFloat(it.precio_unitario) || 0); });
-        const esImportacion = template.includes('importacion');
-        const moneda = esImportacion ? 'USD' : 'S/.';
-        const total = esImportacion ? subtotal : subtotal * 1.18;
-
-        // 6) Archivar PDF en Storage + registrar en `ordenes` (no en vista previa)
+        let numero = 'BORRADOR';
         if (!preview) {
-            const pdfPath = `${empresa}/${anio}/${mes}/${numero_oc}.pdf`;
+            const { data: n, error: corrErr } = await sb.rpc('siguiente_correlativo', {
+                p_empresa: emp.codigo, p_tipo_doc: tipoDoc, p_periodo: periodo
+            });
+            if (corrErr) throw new Error('No se pudo reservar el correlativo: ' + corrErr.message);
+            correlativo = n;
+            reserva = { p_empresa: emp.codigo, p_tipo_doc: tipoDoc, p_periodo: periodo, p_numero: n };
+            numero = formatearNumero(emp, anio, n);
+        }
+
+        // 5) Render -> PDF
+        const html = renderHtml(tpl.archivo || tpl.name, {
+            ...data,                 // plantillas antiguas leen las variables sueltas
+            numero_oc: numero,
+            d: data,                 // plantilla NISIRA
+            calc, emp, numero, tipoDoc,
+            logo: imagen(emp.logo),
+            firma: await obtenerFirma(sb, emp.firma).catch(() => null),
+            elaborado: creado_por_nombre || creado_por_email || '',
+            logoViviana: imagen('logo-viviana.png'),
+            logoCamafra: imagen('logo-camafra.png')
+        });
+        const pdfBuffer = await htmlToPdf(html);
+
+        const nombreArchivo = `${tipoDoc}_${numero.replace(/\s+/g, '')}.pdf`;
+        const advertencias = [];
+
+        // 6) Archivar + registrar
+        if (!preview) {
+            const pdfPath = `${emp.codigo}/${tipoDoc}/${anio}/${mes}/${nombreArchivo}`;
             const { error: upErr } = await sb.storage.from('ordenes-pdf')
                 .upload(pdfPath, pdfBuffer, { contentType: 'application/pdf', upsert: true });
-            if (upErr) console.error('Error subiendo a Storage:', upErr.message);
+            if (upErr) {
+                console.error('Error subiendo a Storage:', upErr.message);
+                advertencias.push('El PDF no se archivó en la nube; guarda la copia descargada.');
+            }
 
             const { error: insErr } = await sb.from('ordenes').insert({
-                empresa,
-                numero_oc,
+                empresa: emp.codigo,
+                tipo_doc: tipoDoc,
+                numero_oc: numero,
                 anio,
                 correlativo,
-                template,
+                template: tpl.name,
                 proveedor_razon_social: data.proveedor_razon_social || null,
                 obra: data.obra || null,
-                fecha: data.fecha || null,
-                total: Number(total.toFixed(2)),
-                moneda,
-                pdf_path: pdfPath,
+                fecha: data.fecha,
+                total: calc.total,
+                moneda: calc.moneda,
+                pdf_path: upErr ? null : pdfPath,
+                datos: data,
                 creado_por_email,
                 creado_por_nombre
             });
-            if (insErr) console.error('Error registrando la orden:', insErr.message);
+            if (insErr) {
+                console.error('Error registrando la orden:', insErr.message);
+                advertencias.push('La orden no quedó en el historial: ' + insErr.message);
+            }
+            reserva = null; // el número ya está usado en un PDF entregado
+            copiarARed(emp.codigo, anio, mes, nombreArchivo, pdfBuffer);
         }
 
-        // 7) Devolver el PDF
+        // 7) Respuesta
         res.statusCode = 200;
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="OC_${numero_oc}.pdf"`);
-        res.setHeader('X-Numero-OC', numero_oc);
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(nombreArchivo)}"`);
+        res.setHeader('X-Numero-OC', encodeURIComponent(numero));
+        res.setHeader('X-Nombre-Archivo', encodeURIComponent(nombreArchivo));
+        if (advertencias.length) res.setHeader('X-Advertencia', encodeURIComponent(advertencias.join(' ')));
         res.setHeader('Content-Length', pdfBuffer.length);
         return res.end(pdfBuffer);
 
     } catch (error) {
         console.error('Error generando PDF:', error);
-        res.statusCode = 500;
-        return res.json({ error: error.message || 'Error desconocido al generar PDF' });
-    } finally {
-        if (page) { try { await page.close(); } catch (_) {} }
+        // Devuelve el número si el PDF nunca llegó al usuario (evita huecos en la numeración)
+        if (reserva) {
+            await sb.rpc('liberar_correlativo', reserva).then(() => {}, () => {});
+        }
+        return sendJson(res, 500, { error: error.message || 'Error desconocido al generar PDF' });
     }
 };

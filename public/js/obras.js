@@ -4,7 +4,8 @@
 
 let _obEditId = null;
 
-const EMPRESA_LABEL = { viviana: 'VIVIANA', camafra: 'CAMAFRA' };
+// Etiquetas cortas por empresa, tomadas del catálogo (config.js)
+const EMPRESA_LABEL = Object.fromEntries(window.OC_EMPRESAS.map(e => [e.codigo, e.nombre.toUpperCase()]));
 
 async function renderObras() {
     const cont = document.getElementById('obrasContent');
@@ -99,6 +100,9 @@ async function deactivateObra(id) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    const sel = document.getElementById('ob_empresa');
+    if (sel) sel.insertAdjacentHTML('beforeend',
+        window.OC_EMPRESAS.map(e => `<option value="${e.codigo}">${escapeHtml(e.nombre)}</option>`).join(''));
     const addBtn = document.getElementById('addObraBtn');
     if (addBtn) addBtn.addEventListener('click', () => openObraModal(null));
     const form = document.getElementById('obraModalForm');

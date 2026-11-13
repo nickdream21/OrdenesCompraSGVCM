@@ -5,7 +5,14 @@
     "api/generate-pdf.js": {
       "memory": 2048,
       "maxDuration": 60,
-      "includeFiles": "{templates/**,public/images/**}"
+      "includeFiles": "{templates/**,public/images/**,assets/fonts/**}"
+    },
+    "api/keepalive.js": {
+      "memory": 128,
+      "maxDuration": 10
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/keepalive", "schedule": "0 13 * * *" }
+  ]
 }

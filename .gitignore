@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 
 # Generated PDFs
 generated/*.pdf
@@ -33,3 +32,8 @@ desktop.ini
 tmp/
 temp/
 *.tmp
+
+# Material de referencia con datos reales (firmas, proveedores) — NO publicar
+docOriginales/
+# Firmas escaneadas: se suben al bucket privado de Supabase (_firmas/), nunca al repo
+public/images/firma-*.png

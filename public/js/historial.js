@@ -2,17 +2,27 @@
 // HISTORIAL DE ÓRDENES (archivo central en Supabase)
 // ============================================================
 
-const _HIST_EMPRESA = { viviana: 'VIVIANA', camafra: 'CAMAFRA' };
+const _HIST_EMPRESA = Object.fromEntries(window.OC_EMPRESAS.map(e => [e.codigo, e.nombre.toUpperCase()]));
+
+document.addEventListener('DOMContentLoaded', () => {
+    const f = document.getElementById('histEmpresa');
+    if (!f) return;
+    f.insertAdjacentHTML('beforeend',
+        window.OC_EMPRESAS.map(e => `<option value="${e.codigo}">${escapeHtml(e.nombre)}</option>`).join(''));
+    f.addEventListener('change', renderHistorial);
+});
 
 async function renderHistorial() {
     const cont = document.getElementById('historialContent');
     cont.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>';
     try {
-        const { data, error } = await SB
-            .from('ordenes')
-            .select('*')
+        const empresa = (document.getElementById('histEmpresa') || {}).value;
+        let q = SB.from('ordenes')
+            .select('id,empresa,tipo_doc,numero_oc,fecha,proveedor_razon_social,total,moneda,pdf_path,creado_por_nombre,creado_por_email,created_at')
             .order('created_at', { ascending: false })
             .limit(200);
+        if (empresa) q = q.eq('empresa', empresa);
+        const { data, error } = await q;
         if (error) throw error;
 
         if (!data || data.length === 0) {
@@ -23,18 +33,18 @@ async function renderHistorial() {
         cont.innerHTML = `
             <div class="table-responsive">
               <table class="data-table">
-                <thead><tr><th>N° OC</th><th>Empresa</th><th>Fecha</th><th>Proveedor</th><th>Generado por</th><th>Total</th><th></th></tr></thead>
+                <thead><tr><th>N° Orden</th><th>Empresa</th><th>Fecha</th><th>Proveedor</th><th>Generado por</th><th>Total</th><th></th></tr></thead>
                 <tbody>
                   ${data.map(o => `
                     <tr>
-                      <td data-label="N° OC"><strong>${escapeHtml(o.numero_oc)}</strong></td>
+                      <td data-label="N° Orden"><span class="badge badge-doc">${escapeHtml(o.tipo_doc || 'OC')}</span><strong>${escapeHtml(o.numero_oc)}</strong></td>
                       <td data-label="Empresa"><span class="badge">${_HIST_EMPRESA[o.empresa] || o.empresa}</span></td>
                       <td data-label="Fecha">${o.fecha ? formatDate(o.fecha) : ''}</td>
                       <td data-label="Proveedor">${escapeHtml(o.proveedor_razon_social || '')}</td>
                       <td data-label="Generado por" class="col-autor">${escapeHtml(o.creado_por_nombre || o.creado_por_email || '—')}</td>
-                      <td data-label="Total">${o.total != null ? `${o.moneda || ''} ${Number(o.total).toFixed(2)}` : ''}</td>
+                      <td data-label="Total">${o.total != null ? `${escapeHtml(o.moneda || '')} ${Number(o.total).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</td>
                       <td class="row-actions">
-                        ${o.pdf_path ? `<button class="btn btn-sm btn-primary" onclick="descargarOrden('${encodeURIComponent(o.pdf_path)}','${escapeHtml(o.numero_oc)}')"><i class="fas fa-download"></i></button>` : ''}
+                        ${o.pdf_path ? `<button class="btn btn-sm btn-primary" onclick="descargarOrden('${encodeURIComponent(o.pdf_path)}')"><i class="fas fa-download"></i></button>` : ''}
                       </td>
                     </tr>`).join('')}
                 </tbody>
@@ -45,7 +55,7 @@ async function renderHistorial() {
     }
 }
 
-async function descargarOrden(pathEnc, numero) {
+async function descargarOrden(pathEnc) {
     try {
         const pdfPath = decodeURIComponent(pathEnc);
         const { data, error } = await SB.storage.from('ordenes-pdf').createSignedUrl(pdfPath, 120);

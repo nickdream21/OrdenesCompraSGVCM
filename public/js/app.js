@@ -26,21 +26,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (session) showApp();
     else showLogin();
 
-    // Reaccionar a cambios de sesión (logout/expiración)
-    SB.auth.onAuthStateChange((_event, sess) => {
+    // Reaccionar a cambios de sesión (logout/expiración/enlace de recuperación)
+    SB.auth.onAuthStateChange((event, sess) => {
+        if (event === 'PASSWORD_RECOVERY') {
+            document.getElementById('newPasswordModal').classList.add('active');
+            return;
+        }
+        if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return;
         if (sess) showApp(); else showLogin();
     });
 });
 
+// Fecha de HOY en la zona horaria local (toISOString usa UTC: en Perú,
+// después de las 7 p. m. devolvía la fecha de mañana).
+function hoyLocal() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function showLogin() {
+    _appShown = false;
     document.getElementById('loginView').style.display = 'flex';
     document.getElementById('appView').style.display = 'none';
 }
 
+let _appShown = false;
 async function showApp() {
     document.getElementById('loginView').style.display = 'none';
     document.getElementById('appView').style.display = 'block';
     renderEmpresas();
+    if (_appShown) return; // evita recargar el usuario en cada evento de sesión
+    _appShown = true;
 
     try {
         const user = await sbGetUser();
@@ -120,6 +136,33 @@ function initLogin() {
     document.getElementById('logoutBtn').addEventListener('click', async () => {
         await sbLogout();
         showLogin();
+    });
+
+    // Recuperar contraseña: Supabase envía un enlace al correo
+    document.getElementById('forgotBtn').addEventListener('click', async () => {
+        const email = document.getElementById('loginEmail').value.trim();
+        const errEl = document.getElementById('loginError');
+        if (!email) { errEl.textContent = 'Escribe tu correo arriba y vuelve a pulsar.'; return; }
+        try {
+            const { error } = await SB.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+            if (error) throw error;
+            errEl.textContent = '';
+            showToast('Te enviamos un enlace para cambiar tu contraseña. Revisa tu correo.', 'success');
+        } catch (err) {
+            errEl.textContent = 'No se pudo enviar el correo: ' + err.message;
+        }
+    });
+
+    document.getElementById('newPasswordForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const pwd = document.getElementById('newPassword').value;
+        const errEl = document.getElementById('newPasswordError');
+        if (pwd.length < 8) { errEl.textContent = 'Mínimo 8 caracteres.'; return; }
+        const { error } = await SB.auth.updateUser({ password: pwd });
+        if (error) { errEl.textContent = error.message; return; }
+        closeModal('newPasswordModal');
+        showToast('Contraseña actualizada', 'success');
+        showApp();
     });
 }
 
@@ -257,7 +300,7 @@ function renderFields(normalFields, optionalSectionFields, conditionalFields) {
 
     // Valor por defecto: fecha de hoy
     const fecha = document.getElementById('fecha');
-    if (fecha && !fecha.value) fecha.value = new Date().toISOString().slice(0, 10);
+    if (fecha && !fecha.value) fecha.value = hoyLocal();
 
     // Poblar selects especiales y enganchar autocompletado
     populateObraSelect();
@@ -308,13 +351,15 @@ function generateFieldHTML(field) {
             break;
         case 'select':
             input = `<select class="form-control" name="${field.name}" id="${field.name}" ${reqAttr}>
-                <option value="">Seleccione...</option>
-                ${(field.options || []).map(o => `<option value="${o}">${o}</option>`).join('')}
+                ${field.default ? '' : '<option value="">Seleccione...</option>'}
+                ${(field.options || []).map(o => `<option value="${o}"${o === field.default ? ' selected' : ''}>${o}</option>`).join('')}
             </select>`;
             break;
         case 'checkbox':
-            input = `<input type="checkbox" name="${field.name}" id="${field.name}">`;
-            break;
+            return `
+                <div class="form-group">
+                    <label class="form-check"><input type="checkbox" name="${field.name}" id="${field.name}"> ${field.label}</label>
+                </div>`;
     }
 
     return `
@@ -430,11 +475,19 @@ function buildObraCustomSelect(wrapper, options) {
         }
     });
 
-    const onDocClick = e => { if (!wrapper.contains(e.target) && wrapper.classList.contains('cs-open')) closePanel(); };
-    const onDocKey   = e => { if (e.key === 'Escape' && wrapper.classList.contains('cs-open')) closePanel(); };
-    document.addEventListener('click', onDocClick);
-    document.addEventListener('keydown', onDocKey);
+    // Un solo par de listeners globales (antes se acumulaban en cada re-render)
+    if (_obraDocHandlers) {
+        document.removeEventListener('click', _obraDocHandlers.click);
+        document.removeEventListener('keydown', _obraDocHandlers.key);
+    }
+    _obraDocHandlers = {
+        click: e => { if (!wrapper.contains(e.target) && wrapper.classList.contains('cs-open')) closePanel(); },
+        key: e => { if (e.key === 'Escape' && wrapper.classList.contains('cs-open')) closePanel(); }
+    };
+    document.addEventListener('click', _obraDocHandlers.click);
+    document.addEventListener('keydown', _obraDocHandlers.key);
 }
+let _obraDocHandlers = null;
 
 // ---- Select de PROVEEDOR (con autocompletado) ----
 function populateProveedorSelect() {
@@ -445,7 +498,7 @@ function populateProveedorSelect() {
         + provs.map(p => `<option value="${escapeHtml(p.razon_social)}" data-id="${p.id}">${escapeHtml(p.razon_social)}</option>`).join('')
         + `<option value="__nuevo__">➕ Nuevo proveedor...</option>`;
 
-    sel.addEventListener('change', () => {
+    sel.onchange = () => {
         if (sel.value === '__nuevo__') {
             sel.value = '';
             if (window.openNuevoProveedor) {
@@ -462,7 +515,7 @@ function populateProveedorSelect() {
         const id = opt && opt.dataset ? opt.dataset.id : null;
         const prov = (appState.proveedores || []).find(p => String(p.id) === String(id));
         if (prov) applyProveedorAutofill(prov);
-    });
+    };
 }
 
 function applyProveedorAutofill(prov) {
@@ -551,7 +604,11 @@ function collectFormData() {
     // una variable indefinida (checkbox -> false; resto -> '').
     config.fields.forEach(field => {
         if (field.type === 'array') return;
-        if (field.type === 'checkbox') { data[field.name] = false; return; }
+        if (field.type === 'checkbox') {
+            const cb = document.getElementById(field.name);
+            data[field.name] = !!(cb && cb.checked);
+            return;
+        }
         const el = document.getElementById(field.name);
         data[field.name] = el ? el.value.trim() : '';
     });
@@ -644,7 +701,7 @@ function initFormHandlers() {
             if (c) { c.innerHTML = ''; addArrayItem(f.name); }
         });
         const fecha = document.getElementById('fecha');
-        if (fecha) fecha.value = new Date().toISOString().slice(0, 10);
+        if (fecha) fecha.value = hoyLocal();
     });
 
     document.getElementById('backBtn').addEventListener('click', () => {
@@ -699,7 +756,10 @@ async function generatePDF(preview) {
             throw new Error(err.error || 'Error al generar el PDF');
         }
 
-        const numeroOC = response.headers.get('X-Numero-OC') || '';
+        const dec = (h) => { const v = response.headers.get(h); try { return v ? decodeURIComponent(v) : ''; } catch { return v || ''; } };
+        const numeroOC = dec('X-Numero-OC');
+        const nombreArchivo = dec('X-Nombre-Archivo');
+        const advertencia = dec('X-Advertencia');
         const blob = await response.blob();
         if (blob.size === 0) throw new Error('El PDF generado está vacío');
         const url = window.URL.createObjectURL(blob);
@@ -710,11 +770,13 @@ async function generatePDF(preview) {
         } else {
             const a = document.createElement('a');
             a.href = url;
-            a.download = `OC_${numeroOC || Date.now()}.pdf`;
+            a.download = nombreArchivo || `OC_${numeroOC || Date.now()}.pdf`;
             document.body.appendChild(a);
             a.click();
             setTimeout(() => { window.URL.revokeObjectURL(url); document.body.removeChild(a); }, 100);
-            showToast(`OC ${numeroOC} generada y descargada`, 'success');
+            const tipo = appState.selectedTemplateConfig.tipoDoc === 'OS' ? 'Orden de servicio' : 'Orden de compra';
+            if (advertencia) showToast(`${tipo} ${numeroOC} descargada. ATENCIÓN: ${advertencia}`, 'warning', 9000);
+            else showToast(`${tipo} ${numeroOC} generada y descargada`, 'success');
         }
     } catch (error) {
         showToast(error.message, 'error');
@@ -728,11 +790,13 @@ async function generatePDF(preview) {
 // ------------------------------------------------------------
 // UTILIDADES
 // ------------------------------------------------------------
-function showToast(message, type = 'info') {
+let _toastTimer = null;
+function showToast(message, type = 'info', ms = 3500) {
     const toast = document.getElementById('toast');
     toast.textContent = message;
     toast.className = `toast show ${type}`;
-    setTimeout(() => toast.classList.remove('show'), 3500);
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => toast.classList.remove('show'), ms);
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
