@@ -1094,7 +1094,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('active')
 
 function escapeHtml(str) {
     return String(str == null ? '' : str)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // Búsqueda instantánea en las tablas de listado

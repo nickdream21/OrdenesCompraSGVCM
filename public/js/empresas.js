@@ -32,8 +32,8 @@ async function renderEmpresasAdmin() {
                   <td data-label="Formato">${e.formato === 'nisira' ? `NISIRA · serie ${escapeHtml(e.serie || '0001')}` : 'Propio'}</td>
                   <td data-label="Aprueba">${escapeHtml(e.aprobador || '—')}</td>
                   <td class="row-actions">
-                    <button class="btn btn-sm btn-secondary" onclick="editarEmpresa('${escapeHtml(e.codigo)}')"><i class="fas fa-pen"></i> Editar</button>
-                    <button class="btn btn-sm ${e.activo === false ? 'btn-secondary' : 'btn-danger'}" onclick="alternarEmpresa('${escapeHtml(e.codigo)}', ${e.activo === false})"
+                    <button class="btn btn-sm btn-secondary" data-accion="editar" data-codigo="${escapeHtml(e.codigo)}"><i class="fas fa-pen"></i> Editar</button>
+                    <button class="btn btn-sm ${e.activo === false ? 'btn-secondary' : 'btn-danger'}" data-accion="${e.activo === false ? 'activar' : 'ocultar'}" data-codigo="${escapeHtml(e.codigo)}"
                         aria-label="${e.activo === false ? 'Activar' : 'Desactivar'} empresa">
                         <i class="fas ${e.activo === false ? 'fa-rotate-left' : 'fa-eye-slash'}"></i></button>
                   </td>
@@ -41,6 +41,11 @@ async function renderEmpresasAdmin() {
             </tbody>
           </table>
         </div>`;
+    // Sin onclick en línea: el código de la empresa nunca se interpreta como JavaScript
+    cont.querySelectorAll('button[data-codigo]').forEach(b => b.addEventListener('click', () => {
+        if (b.dataset.accion === 'editar') editarEmpresa(b.dataset.codigo);
+        else alternarEmpresa(b.dataset.codigo, b.dataset.accion === 'activar');
+    }));
 }
 
 function _val(id, v) { const el = document.getElementById(id); if (v === undefined) return el.value.trim(); el.value = v || ''; }

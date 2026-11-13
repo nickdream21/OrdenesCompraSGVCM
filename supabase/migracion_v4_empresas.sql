@@ -21,6 +21,8 @@ create table if not exists public.empresas (
     serie         text not null default '0001',
     activo        boolean not null default true,
     created_at    timestamptz not null default now(),
+    constraint empresas_codigo_formato check (codigo ~ '^[a-z0-9_-]{2,40}$'),
+    constraint empresas_color_formato check (color ~ '^#[0-9a-fA-F]{6}$'),
     constraint empresas_ruc_formato check (ruc ~ '^[0-9]{11}$'),
     constraint empresas_logo_tamano check (logo_data is null or length(logo_data) < 450000),
     constraint empresas_firma_tamano check (firma_data is null or length(firma_data) < 450000)
