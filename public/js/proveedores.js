@@ -11,23 +11,23 @@ async function renderProveedores() {
     try {
         const provs = await sbLoadProveedores(true);
         if (provs.length === 0) {
-            cont.innerHTML = '<p class="empty">Aún no hay proveedores. Agrega el primero.</p>';
+            cont.innerHTML = '<div class="empty"><strong>Aún no hay proveedores</strong>Registra el primero con “Nuevo proveedor”. También puedes hacerlo desde una orden.</div>';
             return;
         }
         cont.innerHTML = `
             <div class="table-responsive">
               <table class="data-table">
-                <thead><tr><th>Razón Social</th><th>RUC</th><th>Dirección</th><th>Contacto</th><th></th></tr></thead>
+                <thead><tr><th>Razón social</th><th>RUC</th><th>Dirección</th><th>Contacto</th><th></th></tr></thead>
                 <tbody>
                   ${provs.map(p => `
                     <tr>
-                      <td data-label="Razón Social">${escapeHtml(p.razon_social)}</td>
+                      <td data-label="Razón social">${escapeHtml(p.razon_social)}</td>
                       <td data-label="RUC">${escapeHtml(p.ruc || '')}</td>
                       <td data-label="Dirección">${escapeHtml(p.direccion || '')}</td>
                       <td data-label="Contacto">${escapeHtml(p.contacto || '')}${p.telefono ? ' · ' + escapeHtml(p.telefono) : ''}</td>
                       <td class="row-actions">
-                        <button class="btn btn-sm btn-secondary" onclick="editProveedor(${p.id})"><i class="fas fa-pen"></i></button>
-                        <button class="btn btn-sm btn-danger" onclick="deactivateProveedor(${p.id})"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-sm btn-secondary" onclick="editProveedor(${p.id})" aria-label="Editar proveedor"><i class="fas fa-pen"></i> Editar</button>
+                        <button class="btn btn-sm btn-danger" onclick="deactivateProveedor(${p.id})" aria-label="Quitar proveedor"><i class="fas fa-trash"></i></button>
                       </td>
                     </tr>`).join('')}
                 </tbody>

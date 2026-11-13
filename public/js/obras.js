@@ -13,7 +13,7 @@ async function renderObras() {
     try {
         const obras = await sbLoadObras(null, true);
         if (obras.length === 0) {
-            cont.innerHTML = '<p class="empty">Aún no hay obras. Agrega la primera.</p>';
+            cont.innerHTML = '<div class="empty"><strong>Aún no hay obras</strong>Agrega la primera con “Nueva obra” para elegirla rápido en cada orden.</div>';
             return;
         }
         cont.innerHTML = `
@@ -27,8 +27,8 @@ async function renderObras() {
                       <td data-label="Obra">${escapeHtml(o.nombre)}</td>
                       <td data-label="Dirección">${escapeHtml(o.direccion || '')}</td>
                       <td class="row-actions">
-                        <button class="btn btn-sm btn-secondary" onclick="editObra(${o.id})"><i class="fas fa-pen"></i></button>
-                        <button class="btn btn-sm btn-danger" onclick="deactivateObra(${o.id})"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-sm btn-secondary" onclick="editObra(${o.id})" aria-label="Editar obra"><i class="fas fa-pen"></i> Editar</button>
+                        <button class="btn btn-sm btn-danger" onclick="deactivateObra(${o.id})" aria-label="Quitar obra"><i class="fas fa-trash"></i></button>
                       </td>
                     </tr>`).join('')}
                 </tbody>

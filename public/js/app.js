@@ -193,11 +193,11 @@ function renderEmpresas() {
     const cont = document.getElementById('empresaSelector');
     if (cont.dataset.rendered) return;
     cont.innerHTML = window.OC_EMPRESAS.map(e => `
-        <button type="button" class="empresa-card" data-empresa="${e.codigo}">
-            <i class="fas ${e.icon}" style="color:${e.color}"></i>
-            <h4>${e.nombre}</h4>
-            <p>${e.tipo}</p>
-            <span class="badge">RUC: ${e.ruc}</span>
+        <button type="button" class="empresa-card" role="radio" aria-checked="false"
+                data-empresa="${e.codigo}" style="--emp:${e.color}">
+            <img class="empresa-logo" src="images/${e.logo}" alt="">
+            <span class="empresa-nombre">${escapeHtml(e.nombre)}</span>
+            <span class="empresa-ruc">RUC ${e.ruc}</span>
         </button>
     `).join('');
     cont.dataset.rendered = '1';
@@ -208,9 +208,18 @@ function renderEmpresas() {
 
 function initEmpresaSelector() { /* listeners se agregan en renderEmpresas */ }
 
+function marcarSeleccion(selector, attr, valor) {
+    document.querySelectorAll(selector).forEach(c => {
+        const on = c.dataset[attr] === valor;
+        c.classList.toggle('selected', on);
+        c.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+}
+
 async function selectEmpresa(empresa) {
     appState.selectedEmpresa = empresa;
-    document.querySelectorAll('.empresa-card').forEach(c => c.classList.toggle('selected', c.dataset.empresa === empresa));
+    appState.selectedTemplate = appState.selectedTemplateConfig = null;
+    marcarSeleccion('.empresa-card', 'empresa', empresa);
 
     // Precargar obras (por empresa) y proveedores (globales)
     try {
@@ -219,26 +228,30 @@ async function selectEmpresa(empresa) {
             sbLoadProveedores()
         ]);
     } catch (err) {
-        showToast('Error cargando datos: ' + err.message, 'error');
+        showToast('No se pudieron cargar obras y proveedores: ' + err.message, 'error');
     }
 
     renderTiposOC(empresa);
     document.getElementById('tipoOCSection').style.display = 'block';
     document.getElementById('formSection').style.display = 'none';
-    document.getElementById('tipoOCSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('hoja').hidden = true;
+
+    // Si la empresa tiene un solo tipo de orden, se elige solo
+    const tipos = Object.values(window.OC_TEMPLATES).filter(t => t.empresa === empresa);
+    if (tipos.length === 1) selectTipoOC(tipos[0].name);
+    else document.getElementById('tipoOCSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ------------------------------------------------------------
-// PASO 2: TIPO DE OC
+// PASO 2: TIPO DE ORDEN
 // ------------------------------------------------------------
 function renderTiposOC(empresa) {
     const cont = document.getElementById('tipoOCSelector');
     const tipos = Object.values(window.OC_TEMPLATES).filter(t => t.empresa === empresa);
     cont.innerHTML = tipos.map(t => `
-        <button type="button" class="tipo-oc-card" data-template="${t.name}">
-            <h4><i class="fas fa-file-invoice"></i> ${t.displayName}</h4>
-            <p>${t.description}</p>
-            <span class="badge">${t.moneda}</span>
+        <button type="button" class="tipo-oc-card" role="radio" aria-checked="false" data-template="${t.name}">
+            <span class="tipo-oc-nombre">${escapeHtml(t.displayName)}</span>
+            <span class="tipo-oc-desc">${escapeHtml(t.description)}</span>
         </button>
     `).join('');
     cont.querySelectorAll('.tipo-oc-card').forEach(card => {
@@ -249,15 +262,32 @@ function renderTiposOC(empresa) {
 function selectTipoOC(templateName) {
     appState.selectedTemplate = templateName;
     appState.selectedTemplateConfig = window.OC_TEMPLATES[templateName];
-    document.querySelectorAll('.tipo-oc-card').forEach(c => c.classList.toggle('selected', c.dataset.template === templateName));
+    marcarSeleccion('.tipo-oc-card', 'template', templateName);
     document.getElementById('formSection').style.display = 'block';
     generateForm(appState.selectedTemplateConfig);
-    setTimeout(() => document.getElementById('formSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    prepararHoja();
+    setTimeout(() => document.getElementById('formSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
 }
 
 // ------------------------------------------------------------
-// FORMULARIO DINÁMICO
+// FORMULARIO DINÁMICO (agrupado en secciones)
 // ------------------------------------------------------------
+// Sección a la que pertenece cada campo (por nombre). Lo no listado va a "Detalles".
+const GRUPOS = [
+    { titulo: 'Fechas', campos: ['fecha', 'fecha_entrega'] },
+    { titulo: 'Proveedor', campos: ['proveedor_razon_social', 'proveedor_ruc', 'proveedor_direccion', 'proveedor_cuenta_corriente',
+        'proveedor_contacto', 'proveedor_telefono', 'proveedor_correo', 'cuenta_corriente_1', 'cuenta_corriente_2'] },
+    { titulo: 'Destino y referencias', campos: ['obra', 'para_ser_usado_en', 'lugar_entrega', 'area', 'cotizacion', 'orden_pedido', 'pedido',
+        'lugar_carga', 'vehiculo_carga'] },
+    { titulo: 'Pago y moneda', campos: ['condiciones_pago', 'moneda', 'precios_incluyen_igv'] },
+    { titulo: 'Ítems', campos: ['items'] },
+    { titulo: 'Contacto para el envío', campos: ['contacto_envio_nombre', 'contacto_envio_dni', 'contacto_envio_telefono'] },
+    { titulo: 'Observaciones', campos: ['observaciones'] }
+];
+// Campos que ocupan todo el ancho
+const ANCHO_COMPLETO = new Set(['proveedor_razon_social', 'proveedor_direccion', 'obra', 'para_ser_usado_en', 'lugar_entrega',
+    'observaciones', 'precios_incluyen_igv', 'contacto_envio_nombre', 'proveedor_cuenta_corriente']);
+
 function generateForm(config) {
     appState.optionalFieldsState = {};
     const optionalToggle = document.getElementById('optionalFieldsToggle');
@@ -272,40 +302,62 @@ function generateForm(config) {
         optionalCheckboxes.innerHTML = optionalSectionFields.map(f => `
             <label class="optional-checkbox-item">
                 <input type="checkbox" id="opt_${f.name}" data-field="${f.name}">
-                <span>${f.label}</span>
+                <span>${escapeHtml(f.label.replace(/^¿Incluir\s*/i, '').replace(/\?$/, ''))}</span>
             </label>
         `).join('');
         optionalSectionFields.forEach(f => {
             document.getElementById(`opt_${f.name}`).addEventListener('change', (e) => {
                 appState.optionalFieldsState[f.name] = e.target.checked;
+                // Re-dibuja SIN perder lo ya escrito (antes se borraba todo)
+                const snapshot = tomarSnapshot();
                 renderFields(normalFields, optionalSectionFields, conditionalFields);
+                restaurarSnapshot(snapshot);
             });
         });
     } else {
         optionalToggle.style.display = 'none';
+        optionalCheckboxes.innerHTML = '';
     }
 
     renderFields(normalFields, optionalSectionFields, conditionalFields);
 }
 
 function renderFields(normalFields, optionalSectionFields, conditionalFields) {
-    let fieldsToShow = [...normalFields];
+    const fieldsToShow = [...normalFields];
     optionalSectionFields.forEach(optField => {
         if (appState.optionalFieldsState[optField.name]) {
             fieldsToShow.push(...conditionalFields.filter(f => f.conditional === optField.name));
         }
     });
 
-    document.getElementById('formFields').innerHTML = fieldsToShow.map(generateFieldHTML).join('');
+    const usados = new Set();
+    const html = GRUPOS.map(g => {
+        const campos = fieldsToShow.filter(f => g.campos.includes(f.name));
+        campos.forEach(f => usados.add(f.name));
+        return campos.length ? renderGrupo(g.titulo, campos) : '';
+    });
+    const resto = fieldsToShow.filter(f => !usados.has(f.name));
+    if (resto.length) html.push(renderGrupo('Detalles', resto));
+    document.getElementById('formFields').innerHTML = html.join('');
 
-    // Valor por defecto: fecha de hoy
     const fecha = document.getElementById('fecha');
     if (fecha && !fecha.value) fecha.value = hoyLocal();
 
-    // Poblar selects especiales y enganchar autocompletado
     populateObraSelect();
     populateProveedorSelect();
     initArrayFields();
+    actualizarHoja();
+}
+
+function renderGrupo(titulo, campos) {
+    if (campos.length === 1 && campos[0].type === 'array') {
+        return `<fieldset class="grupo"><legend class="grupo-titulo">${titulo}</legend>${generateFieldHTML(campos[0])}</fieldset>`;
+    }
+    return `
+        <fieldset class="grupo">
+            <legend class="grupo-titulo">${titulo}</legend>
+            <div class="form-grid">${campos.map(generateFieldHTML).join('')}</div>
+        </fieldset>`;
 }
 
 function generateFieldHTML(field) {
@@ -313,26 +365,26 @@ function generateFieldHTML(field) {
 
     const reqClass = field.required ? 'required' : '';
     const reqAttr = field.required ? 'required' : '';
+    const span = ANCHO_COMPLETO.has(field.name) || field.type === 'textarea' ? ' span-2' : '';
+    const ph = field.placeholder ? ` placeholder="${escapeHtml(field.placeholder)}"` : '';
     let input = '';
 
-    // Campo OBRA -> custom select con bottom-sheet en móvil
     if (field.source === 'obra') {
         return `
-            <div class="form-group">
+            <div class="form-group span-2">
                 <label class="form-label ${reqClass}">${field.label}</label>
                 <div id="obra-cs-wrapper" class="cs-wrapper"></div>
                 <textarea class="form-control" id="obra_otra" name="obra_otra" rows="2"
-                    placeholder="Escribe la obra" style="display:none; margin-top:8px;"></textarea>
+                    placeholder="Escribe el nombre de la obra" style="display:none; margin-top:8px;"></textarea>
             </div>`;
     }
 
-    // Campo PROVEEDOR -> select desde la BD (autocompleta los demás)
     if (field.source === 'proveedor') {
         return `
-            <div class="form-group">
+            <div class="form-group span-2">
                 <label class="form-label ${reqClass}" for="proveedor_razon_social">${field.label}</label>
                 <select class="form-control" id="proveedor_razon_social" name="proveedor_razon_social" ${reqAttr}>
-                    <option value="">Seleccione un proveedor...</option>
+                    <option value="">Elige un proveedor…</option>
                 </select>
             </div>`;
     }
@@ -340,33 +392,76 @@ function generateFieldHTML(field) {
     switch (field.type) {
         case 'text':
         case 'email':
-        case 'date':
-            input = `<input type="${field.type}" class="form-control" name="${field.name}" id="${field.name}" placeholder="${field.placeholder || ''}" ${reqAttr}>`;
+        case 'date': {
+            const extra = field.validate === 'ruc' || field.validate === 'dni' ? ' inputmode="numeric"'
+                : field.validate === 'phone' ? ' inputmode="tel"' : '';
+            input = `<input type="${field.type}" class="form-control" name="${field.name}" id="${field.name}"${ph}${extra} ${reqAttr}>`;
             break;
+        }
         case 'number':
-            input = `<input type="number" class="form-control" name="${field.name}" id="${field.name}" step="${field.step || '1'}" min="0" placeholder="${field.placeholder || ''}" ${reqAttr}>`;
+            input = `<input type="number" class="form-control" name="${field.name}" id="${field.name}" step="${field.step || '1'}" min="0" inputmode="decimal"${ph} ${reqAttr}>`;
             break;
         case 'textarea':
-            input = `<textarea class="form-control" name="${field.name}" id="${field.name}" rows="${field.rows || 3}" placeholder="${field.placeholder || ''}" ${reqAttr}></textarea>`;
+            input = `<textarea class="form-control" name="${field.name}" id="${field.name}" rows="${field.rows || 3}"${ph} ${reqAttr}></textarea>`;
             break;
         case 'select':
             input = `<select class="form-control" name="${field.name}" id="${field.name}" ${reqAttr}>
-                ${field.default ? '' : '<option value="">Seleccione...</option>'}
+                ${field.default ? '' : '<option value="">Elige…</option>'}
                 ${(field.options || []).map(o => `<option value="${o}"${o === field.default ? ' selected' : ''}>${o}</option>`).join('')}
             </select>`;
             break;
         case 'checkbox':
             return `
-                <div class="form-group">
+                <div class="form-group${span}">
                     <label class="form-check"><input type="checkbox" name="${field.name}" id="${field.name}"> ${field.label}</label>
                 </div>`;
     }
 
     return `
-        <div class="form-group">
+        <div class="form-group${span}">
             <label class="form-label ${reqClass}" for="${field.name}">${field.label}</label>
             ${input}
         </div>`;
+}
+
+// ---- Conservar lo escrito al re-dibujar ----
+function tomarSnapshot() {
+    const campos = {};
+    document.querySelectorAll('#formFields [id]').forEach(el => {
+        if (el.closest('.item')) return;
+        if (el.type === 'checkbox') campos[el.id] = el.checked;
+        else if ('value' in el) campos[el.id] = el.value;
+    });
+    const obraLabel = document.querySelector('#obra-cs-wrapper .cs-value:not(.cs-value--placeholder)');
+    const items = [...document.querySelectorAll('#formFields .item')].map(item => {
+        const o = {};
+        item.querySelectorAll('[data-sub]').forEach(i => { o[i.dataset.sub] = i.value; });
+        return o;
+    });
+    return { campos, items, obraLabel: obraLabel ? obraLabel.textContent : null };
+}
+
+function restaurarSnapshot(s) {
+    Object.entries(s.campos).forEach(([id, v]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.type === 'checkbox') el.checked = v; else el.value = v;
+    });
+    if (s.obraLabel && s.campos.obra) {
+        const vs = document.querySelector('#obra-cs-wrapper .cs-value');
+        if (vs) { vs.textContent = s.obraLabel; vs.classList.remove('cs-value--placeholder'); }
+        if (s.campos.obra === '__otra__') {
+            const ta = document.getElementById('obra_otra');
+            if (ta) ta.style.display = 'block';
+        }
+    }
+    const field = appState.selectedTemplateConfig.fields.find(f => f.type === 'array');
+    if (field && s.items.length) {
+        const cont = document.getElementById(`array_${field.name}`);
+        cont.innerHTML = '';
+        s.items.forEach(vals => addArrayItem(field.name, vals));
+    }
+    actualizarHoja();
 }
 
 // ---- Custom Select de OBRA ----
@@ -375,14 +470,14 @@ function populateObraSelect() {
     if (!wrapper) return;
     const obras = appState.obras || [];
     const options = obras.map(o => ({ value: o.nombre, label: o.nombre }));
-    options.push({ value: '__otra__', label: 'Otra (escribir)...', isOther: true });
+    options.push({ value: '__otra__', label: 'Otra obra (escribir)', isOther: true });
     buildObraCustomSelect(wrapper, options);
 }
 
 function buildObraCustomSelect(wrapper, options) {
     wrapper.innerHTML = `
         <button type="button" class="cs-trigger" aria-haspopup="listbox" aria-expanded="false">
-            <span class="cs-value cs-value--placeholder">Seleccione una obra...</span>
+            <span class="cs-value cs-value--placeholder">Elige una obra…</span>
             <i class="fas fa-chevron-down cs-arrow" aria-hidden="true"></i>
         </button>
         <input type="hidden" id="obra" name="obra">
@@ -494,9 +589,9 @@ function populateProveedorSelect() {
     const sel = document.getElementById('proveedor_razon_social');
     if (!sel) return;
     const provs = appState.proveedores || [];
-    sel.innerHTML = `<option value="">Seleccione un proveedor...</option>`
+    sel.innerHTML = `<option value="">Elige un proveedor…</option>`
         + provs.map(p => `<option value="${escapeHtml(p.razon_social)}" data-id="${p.id}">${escapeHtml(p.razon_social)}</option>`).join('')
-        + `<option value="__nuevo__">➕ Nuevo proveedor...</option>`;
+        + `<option value="__nuevo__">+ Registrar proveedor nuevo</option>`;
 
     sel.onchange = () => {
         if (sel.value === '__nuevo__') {
@@ -526,18 +621,18 @@ function applyProveedorAutofill(prov) {
 }
 
 // ------------------------------------------------------------
-// CAMPOS ARRAY (items)
+// ÍTEMS (filas con importe calculado)
 // ------------------------------------------------------------
+// Rol visual de cada sub-campo dentro de la fila
+const ITEM_ROL = { descripcion: 'desc', cantidad: 'cant', unidad: 'um', precio_unitario: 'pu' };
+
 function generateArrayFieldHTML(field) {
     return `
         <div class="array-field" data-array-name="${field.name}">
-            <div class="array-field-header">
-                <h4><i class="fas fa-list"></i> ${field.label}</h4>
-                <button type="button" class="btn btn-sm btn-primary" onclick="addArrayItem('${field.name}')">
-                    <i class="fas fa-plus"></i> Agregar
-                </button>
-            </div>
             <div class="array-items" id="array_${field.name}"></div>
+            <button type="button" class="btn btn-secondary btn-sm btn-add-item" onclick="addArrayItem('${field.name}')">
+                <i class="fas fa-plus"></i> Agregar ítem
+            </button>
         </div>`;
 }
 
@@ -548,49 +643,162 @@ function initArrayFields() {
     });
 }
 
-function addArrayItem(arrayName) {
+function subInputHTML(sf, valor) {
+    const reqAttr = sf.required ? 'required' : '';
+    const reqClass = sf.required ? 'required' : '';
+    const v = valor != null ? ` value="${escapeHtml(valor)}"` : '';
+    const ph = sf.placeholder ? ` placeholder="${escapeHtml(sf.placeholder)}"` : '';
+    let input;
+    if (sf.type === 'textarea') {
+        input = `<textarea class="form-control" data-sub="${sf.name}" rows="1"${ph} ${reqAttr}>${valor != null ? escapeHtml(valor) : ''}</textarea>`;
+    } else if (sf.type === 'number') {
+        input = `<input type="number" class="form-control" data-sub="${sf.name}" step="${sf.step || '0.01'}" min="0" inputmode="decimal"${ph}${v} ${reqAttr}>`;
+    } else {
+        input = `<input type="${sf.type}" class="form-control" data-sub="${sf.name}"${ph}${v} ${reqAttr}>`;
+    }
+    return `<label class="form-label ${reqClass}">${sf.label}</label>${input}`;
+}
+
+function addArrayItem(arrayName, valores) {
     const field = appState.selectedTemplateConfig.fields.find(f => f.name === arrayName);
     if (!field) return;
     const container = document.getElementById(`array_${arrayName}`);
-    const index = container.children.length;
+    const vals = valores || {};
 
-    const subInputs = field.fields.map(sf => {
-        const reqAttr = sf.required ? 'required' : '';
-        const reqClass = sf.required ? 'required' : '';
-        let input;
-        if (sf.type === 'textarea') {
-            input = `<textarea class="form-control" data-sub="${sf.name}" rows="${sf.rows || 2}" placeholder="${sf.placeholder || ''}" ${reqAttr}></textarea>`;
-        } else if (sf.type === 'number') {
-            input = `<input type="number" class="form-control" data-sub="${sf.name}" step="${sf.step || '0.01'}" min="0" placeholder="${sf.placeholder || ''}" ${reqAttr}>`;
-        } else {
-            input = `<input type="${sf.type}" class="form-control" data-sub="${sf.name}" placeholder="${sf.placeholder || ''}" ${reqAttr}>`;
-        }
-        return `<div class="form-group"><label class="form-label ${reqClass}">${sf.label}</label>${input}</div>`;
-    }).join('');
+    const principales = field.fields.filter(sf => ITEM_ROL[sf.name]);
+    const extras = field.fields.filter(sf => !ITEM_ROL[sf.name]);
+    const orden = ['descripcion', 'cantidad', 'unidad', 'precio_unitario'];
+    principales.sort((a, b) => orden.indexOf(a.name) - orden.indexOf(b.name));
 
     container.insertAdjacentHTML('beforeend', `
-        <div class="array-item" data-index="${index}">
-            <div class="array-item-header">
-                <span class="array-item-title">Item #${index + 1}</span>
-                <button type="button" class="btn btn-sm btn-danger" onclick="removeArrayItem('${arrayName}', this)">
-                    <i class="fas fa-trash"></i>
-                </button>
+        <div class="item">
+            <span class="item-n"></span>
+            ${principales.map(sf => `<div class="form-group item-${ITEM_ROL[sf.name]}">${subInputHTML(sf, vals[sf.name])}</div>`).join('')}
+            <div class="item-importe"><span class="form-label">Importe</span><output>0.00</output></div>
+            <div class="item-quitar">
+                <button type="button" class="btn btn-ghost btn-sm" title="Quitar ítem" aria-label="Quitar ítem"
+                        onclick="removeArrayItem('${arrayName}', this)"><i class="fas fa-trash"></i></button>
             </div>
-            <div class="form-row">${subInputs}</div>
+            ${extras.length ? `<div class="item-extra">${extras.map(sf => `<div class="form-group">${subInputHTML(sf, vals[sf.name])}</div>`).join('')}</div>` : ''}
         </div>`);
+    numerarItems(container);
+    if (!valores) {
+        const nuevo = container.lastElementChild.querySelector('[data-sub="descripcion"]');
+        if (nuevo && container.children.length > 1) nuevo.focus();
+    }
+    actualizarHoja();
+}
+
+// La descripción del ítem crece con el texto (sin barra de desplazamiento)
+function autoAltura(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 2 + 'px';
+}
+
+function numerarItems(container) {
+    container.querySelectorAll('textarea[data-sub]').forEach(autoAltura);
+    container.querySelectorAll('.item').forEach((item, i) => {
+        item.querySelector('.item-n').textContent = String(i + 1).padStart(2, '0');
+    });
 }
 
 function removeArrayItem(arrayName, btn) {
     const container = document.getElementById(`array_${arrayName}`);
-    if (container.querySelectorAll('.array-item').length <= 1) {
-        showToast('Debe haber al menos un item', 'warning');
+    if (container.querySelectorAll('.item').length <= 1) {
+        showToast('La orden necesita al menos un ítem.', 'warning');
         return;
     }
-    btn.closest('.array-item').remove();
-    container.querySelectorAll('.array-item').forEach((item, i) => {
-        item.dataset.index = i;
-        item.querySelector('.array-item-title').textContent = `Item #${i + 1}`;
+    btn.closest('.item').remove();
+    numerarItems(container);
+    actualizarHoja();
+}
+
+// ------------------------------------------------------------
+// HOJA: resumen vivo del documento
+// ------------------------------------------------------------
+// Cálculo de referencia en pantalla. El PDF lo calcula el servidor
+// (lib/calculo.js) con la misma regla; aquí solo se muestra.
+const _r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+const _fmt = (n, d = 2) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+function calcularEnPantalla(items) {
+    const cfg = appState.selectedTemplateConfig;
+    if (!cfg) return null;
+    const monedaSel = document.getElementById('moneda');
+    const igvIncl = document.getElementById('precios_incluyen_igv');
+    const modo = cfg.calculo;
+    const moneda = (modo === 'nisira' && monedaSel && monedaSel.value) || (cfg.moneda === 'USD' ? 'USD' : 'PEN');
+    const incluye = modo === 'nisira' && igvIncl && igvIncl.checked;
+
+    let bruto = 0;
+    const lineas = items.map(it => {
+        const c = parseFloat(it.cantidad) || 0;
+        const p = parseFloat(it.precio_unitario) || 0;
+        bruto += c * p;
+        const neto = incluye ? p / 1.18 : p;
+        return { ...it, importe: _r2(c * neto) };
     });
+    const vv = _r2(lineas.reduce((s, l) => s + l.importe, 0));
+    let igv, total;
+    if (modo === 'sin_igv') { igv = 0; total = vv; }
+    else if (incluye) { total = _r2(bruto); igv = _r2(total - vv); }
+    else { igv = _r2(vv * 0.18); total = _r2(vv + igv); }
+    return { lineas, vv, igv, total, moneda, sinIgv: modo === 'sin_igv' };
+}
+
+function leerItems() {
+    return [...document.querySelectorAll('#formFields .item')].map(item => {
+        const o = {};
+        item.querySelectorAll('[data-sub]').forEach(i => { o[i.dataset.sub] = i.value.trim(); });
+        return o;
+    });
+}
+
+function prepararHoja() {
+    const cfg = appState.selectedTemplateConfig;
+    const emp = window.OC_CATALOGO.getEmpresa(cfg.empresa);
+    const hoja = document.getElementById('hoja');
+    hoja.hidden = false;
+    document.getElementById('hojaLogo').src = `images/${emp.logo}`;
+    document.getElementById('hojaRuc').textContent = `RUC ${emp.ruc}`;
+    document.getElementById('hojaTipo').textContent = cfg.tipoDoc === 'OS' ? 'ORDEN DE SERVICIO' : 'ORDEN DE COMPRA';
+    const num = document.getElementById('hojaNumero');
+    num.textContent = 'N° se asigna al generar';
+    num.classList.remove('listo');
+    document.getElementById('hojaEmpresa').textContent = emp.razonSocial || emp.nombre;
+    actualizarHoja();
+}
+
+function actualizarHoja() {
+    const cfg = appState.selectedTemplateConfig;
+    if (!cfg || document.getElementById('hoja').hidden) return;
+    const items = leerItems();
+    const c = calcularEnPantalla(items);
+
+    // Importe por fila
+    document.querySelectorAll('#formFields .item').forEach((row, i) => {
+        const out = row.querySelector('.item-importe output');
+        if (out && c.lineas[i]) out.textContent = _fmt(c.lineas[i].importe);
+    });
+
+    const prov = document.getElementById('proveedor_razon_social');
+    document.getElementById('hojaProveedor').textContent = prov && prov.value && prov.value !== '__nuevo__' ? prov.value : 'Sin elegir';
+    const f = document.getElementById('fecha');
+    document.getElementById('hojaFecha').textContent = f && f.value ? f.value.split('-').reverse().join('/') : '—';
+
+    const lista = document.getElementById('hojaItems');
+    const conDatos = c.lineas.filter(l => l.descripcion || l.importe);
+    lista.innerHTML = conDatos.length
+        ? conDatos.map(l => `<li><span>${escapeHtml(l.descripcion || 'Ítem sin descripción')}</span><span>${_fmt(l.importe)}</span></li>`).join('')
+        : '<li class="vacio">Los ítems aparecerán aquí.</li>';
+
+    document.getElementById('hojaRowVV').hidden = c.sinIgv;
+    document.getElementById('hojaRowIGV').hidden = c.sinIgv;
+    document.getElementById('hojaVV').textContent = _fmt(c.vv);
+    document.getElementById('hojaIGV').textContent = _fmt(c.igv);
+    document.getElementById('hojaTotal').textContent = _fmt(c.total);
+    document.getElementById('hojaMoneda').textContent = c.moneda;
+    document.getElementById('hojaSon').textContent = c.total > 0 ? 'Monto estimado. El PDF muestra el total en letras.' : '';
 }
 
 // ------------------------------------------------------------
@@ -688,7 +896,7 @@ function initFormHandlers() {
         if (csWrapper) {
             csWrapper.classList.remove('cs-open');
             const vs = csWrapper.querySelector('.cs-value');
-            if (vs) { vs.textContent = 'Seleccione una obra...'; vs.classList.add('cs-value--placeholder'); }
+            if (vs) { vs.textContent = 'Elige una obra…'; vs.classList.add('cs-value--placeholder'); }
             const hi = csWrapper.querySelector('#obra');
             if (hi) hi.value = '';
             csWrapper.querySelectorAll('.cs-option').forEach(o => o.classList.remove('selected'));
@@ -702,14 +910,27 @@ function initFormHandlers() {
         });
         const fecha = document.getElementById('fecha');
         if (fecha) fecha.value = hoyLocal();
+        actualizarHoja();
     });
 
     document.getElementById('backBtn').addEventListener('click', () => {
         appState.selectedEmpresa = appState.selectedTemplate = appState.selectedTemplateConfig = null;
-        document.querySelectorAll('.empresa-card, .tipo-oc-card').forEach(c => c.classList.remove('selected'));
+        document.querySelectorAll('.empresa-card, .tipo-oc-card').forEach(c => {
+            c.classList.remove('selected'); c.setAttribute('aria-checked', 'false');
+        });
         document.getElementById('tipoOCSection').style.display = 'none';
         document.getElementById('formSection').style.display = 'none';
+        document.getElementById('hoja').hidden = true;
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // La hoja se actualiza con cada cambio del formulario
+    const form = document.getElementById('ocForm');
+    form.addEventListener('input', actualizarHoja);
+    form.addEventListener('change', actualizarHoja);
+    form.addEventListener('input', (e) => {
+        e.target.classList && e.target.classList.remove('invalido');
+        if (e.target.matches && e.target.matches('textarea[data-sub]')) autoAltura(e.target);
     });
 
     document.getElementById('ocForm').addEventListener('submit', async (e) => {
@@ -720,11 +941,23 @@ function initFormHandlers() {
     document.getElementById('previewBtn').addEventListener('click', () => generatePDF(true));
 }
 
+// Resalta los campos obligatorios vacíos y lleva el foco al primero
+function marcarInvalidos() {
+    let primero = null;
+    document.querySelectorAll('#ocForm [required]').forEach(el => {
+        const vacio = !String(el.value || '').trim();
+        el.classList.toggle('invalido', vacio);
+        if (vacio && !primero && el.offsetParent !== null) primero = el;
+    });
+    if (primero) primero.focus({ preventScroll: false });
+}
+
 async function generatePDF(preview) {
     const data = collectFormData();
     const errors = validateData(data);
     if (errors.length) {
-        showToast(errors[0], 'error');
+        marcarInvalidos();
+        showToast(errors.length > 1 ? `${errors[0]} (y ${errors.length - 1} más)` : errors[0], 'error', 5000);
         return;
     }
 
@@ -775,6 +1008,8 @@ async function generatePDF(preview) {
             a.click();
             setTimeout(() => { window.URL.revokeObjectURL(url); document.body.removeChild(a); }, 100);
             const tipo = appState.selectedTemplateConfig.tipoDoc === 'OS' ? 'Orden de servicio' : 'Orden de compra';
+            const hn = document.getElementById('hojaNumero');
+            if (numeroOC) { hn.textContent = `N° ${numeroOC}`; hn.classList.add('listo'); }
             if (advertencia) showToast(`${tipo} ${numeroOC} descargada. ATENCIÓN: ${advertencia}`, 'warning', 9000);
             else showToast(`${tipo} ${numeroOC} generada y descargada`, 'success');
         }
@@ -805,6 +1040,22 @@ function escapeHtml(str) {
     return String(str == null ? '' : str)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+// Búsqueda instantánea en las tablas de listado
+function filtrarFilas(inputId, contId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        document.querySelectorAll(`#${contId} tbody tr`).forEach(tr => {
+            tr.hidden = q && !tr.textContent.toLowerCase().includes(q);
+        });
+    });
+}
+document.addEventListener('DOMContentLoaded', () => {
+    filtrarFilas('pvBuscar', 'proveedoresContent');
+    filtrarFilas('histBuscar', 'historialContent');
+});
 
 window.onclick = (e) => {
     if (e.target.classList.contains('modal') && e.target.id !== 'nameSetupModal')

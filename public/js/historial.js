@@ -26,7 +26,7 @@ async function renderHistorial() {
         if (error) throw error;
 
         if (!data || data.length === 0) {
-            cont.innerHTML = '<p class="empty">Todavía no se ha generado ninguna orden.</p>';
+            cont.innerHTML = '<div class="empty"><strong>Sin órdenes todavía</strong>Las órdenes que generes aparecerán aquí con su PDF.</div>';
             return;
         }
 
@@ -42,9 +42,9 @@ async function renderHistorial() {
                       <td data-label="Fecha">${o.fecha ? formatDate(o.fecha) : ''}</td>
                       <td data-label="Proveedor">${escapeHtml(o.proveedor_razon_social || '')}</td>
                       <td data-label="Generado por" class="col-autor">${escapeHtml(o.creado_por_nombre || o.creado_por_email || '—')}</td>
-                      <td data-label="Total">${o.total != null ? `${escapeHtml(o.moneda || '')} ${Number(o.total).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</td>
+                      <td data-label="Total" class="num">${o.total != null ? `${escapeHtml(o.moneda || '')} ${Number(o.total).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</td>
                       <td class="row-actions">
-                        ${o.pdf_path ? `<button class="btn btn-sm btn-primary" onclick="descargarOrden('${encodeURIComponent(o.pdf_path)}')"><i class="fas fa-download"></i></button>` : ''}
+                        ${o.pdf_path ? `<button class="btn btn-sm btn-primary" onclick="descargarOrden('${encodeURIComponent(o.pdf_path)}')"><i class="fas fa-download"></i> PDF</button>` : ''}
                       </td>
                     </tr>`).join('')}
                 </tbody>
