@@ -59,14 +59,15 @@
             nombre: 'Edificaciones & Construcciones del Norte',
             razonSocial: 'EDIFICACIONES & CONSTRUCCIONES DEL NORTE E.I.R.L.',
             tipo: 'E.I.R.L.',
-            // TODO(datos reales): completar RUC, dirección, teléfono y aprobador.
-            ruc: '00000000000',
-            direccion: 'DIRECCIÓN FISCAL PENDIENTE',
-            telefono: '',
+            ruc: '20611247142',
+            direccion: 'MZA. 01 LOTE. 11 A.H. CIUDAD ROJA DEL PESCADOR PIURA - PAITA - PAITA',
+            telefono: '+51 958 429 065',
+            email: 'eycdelnorte@gmail.com',
             logo: 'logo-edificaciones.png',
-            // Firma escaneada opcional (PNG con fondo transparente) en public/images/
+            // Firma escaneada opcional: bucket privado ordenes-pdf/_firmas/ (ver README)
             firma: 'firma-edificaciones.png',
-            aprobador: 'NOMBRE DEL APROBADOR',
+            // TODO: nombre de quien firma "Vº Bº Aprobado"
+            aprobador: '',
             icon: 'fa-building',
             color: '#9a7520',
             numeracion: { formato: 'serie', serie: '0001', digitos: 7 }
