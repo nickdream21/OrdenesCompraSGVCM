@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#1e293b">
-    <title>Órdenes de Compra</title>
+    <title>Órdenes de Compra y Servicio</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -15,7 +15,7 @@
         <form id="loginForm" class="login-card">
             <div class="login-logo"><i class="fas fa-file-invoice"></i></div>
             <h1>Órdenes de Compra</h1>
-            <p>Ingresa con la clave del equipo</p>
+            <p>Ingresa con tu correo y contraseña</p>
             <div class="form-group">
                 <input id="loginEmail" type="email" class="form-control" placeholder="Correo" autocomplete="username" required>
             </div>
@@ -26,13 +26,14 @@
             <button id="loginBtn" type="submit" class="btn btn-primary btn-block">
                 <i class="fas fa-right-to-bracket"></i> Ingresar
             </button>
+            <button type="button" id="forgotBtn" class="link-btn">¿Olvidaste tu contraseña?</button>
         </form>
     </div>
 
     <!-- ============ APP ============ -->
     <div id="appView" style="display:none">
         <header class="app-header">
-            <div class="brand"><i class="fas fa-file-invoice"></i> Órdenes de Compra</div>
+            <div class="brand"><i class="fas fa-file-invoice"></i> Órdenes</div>
             <div class="header-right">
                 <div class="header-user-chip" id="headerUserChip" style="display:none">
                     <i class="fas fa-circle-user"></i>
@@ -66,7 +67,7 @@
 
                     <div class="step" id="formSection" style="display:none">
                         <h3><span class="step-num">3</span> Completa los datos</h3>
-                        <div class="oc-note"><i class="fas fa-circle-info"></i> El número de OC se asignará automáticamente al generar.</div>
+                        <div class="oc-note"><i class="fas fa-circle-info"></i> El número de la orden se asigna automáticamente al generar.</div>
 
                         <div id="optionalFieldsToggle" style="display:none">
                             <h4 class="optional-title"><i class="fas fa-sliders"></i> Campos opcionales</h4>
@@ -79,7 +80,7 @@
                                 <button type="button" class="btn btn-secondary" id="clearForm"><i class="fas fa-eraser"></i> Limpiar</button>
                                 <button type="button" class="btn btn-secondary" id="backBtn"><i class="fas fa-arrow-left"></i> Cambiar</button>
                                 <button type="button" class="btn btn-info" id="previewBtn"><i class="fas fa-eye"></i> Vista previa</button>
-                                <button type="submit" class="btn btn-primary" id="generateBtn"><i class="fas fa-file-pdf"></i> Generar OC</button>
+                                <button type="submit" class="btn btn-primary" id="generateBtn"><i class="fas fa-file-pdf"></i> Generar orden</button>
                             </div>
                         </form>
                     </div>
@@ -113,7 +114,10 @@
                 <div class="card">
                     <div class="card-header">
                         <h2><i class="fas fa-clock-rotate-left"></i> Historial</h2>
-                        <button class="btn btn-secondary btn-sm" onclick="renderHistorial()"><i class="fas fa-sync"></i> Actualizar</button>
+                        <div class="header-tools">
+                            <select id="histEmpresa" class="form-control form-control-sm" aria-label="Filtrar por empresa"><option value="">Todas las empresas</option></select>
+                            <button class="btn btn-secondary btn-sm" onclick="renderHistorial()"><i class="fas fa-sync"></i> Actualizar</button>
+                        </div>
                     </div>
                     <div id="historialContent"></div>
                 </div>
@@ -158,8 +162,6 @@
                     <label class="form-label required">Empresa</label>
                     <select id="ob_empresa" class="form-control" required>
                         <option value="">Seleccione...</option>
-                        <option value="viviana">VIVIANA</option>
-                        <option value="camafra">CAMAFRA</option>
                     </select>
                 </div>
                 <div class="form-group"><label class="form-label required">Nombre de la obra</label><textarea id="ob_nombre" class="form-control" rows="2" required></textarea></div>
@@ -210,10 +212,29 @@
         </div>
     </div>
 
+    <!-- ============ MODAL NUEVA CONTRASEÑA (enlace de recuperación) ============ -->
+    <div class="modal" id="newPasswordModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-key"></i> Nueva contraseña</h2>
+            </div>
+            <form id="newPasswordForm" class="modal-body">
+                <div class="form-group">
+                    <label class="form-label required">Nueva contraseña (mínimo 8 caracteres)</label>
+                    <input id="newPassword" type="password" class="form-control" minlength="8" autocomplete="new-password" required>
+                </div>
+                <div id="newPasswordError" class="form-error"></div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-check"></i> Guardar contraseña</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="toast" id="toast"></div>
 
     <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
     <script src="js/supabase-config.js"></script>
     <script src="js/supabaseClient.js"></script>
     <script src="js/config.js"></script>

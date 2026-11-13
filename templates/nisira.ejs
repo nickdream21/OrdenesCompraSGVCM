@@ -1,0 +1,224 @@
+<%#
+  Formato NISIRA (Orden de Compra / Orden de Servicio)
+  Replica el diseño de los PDF que genera NISIRA ERP.
+  Variables: d (formulario), calc (lib/calculo.js), emp (empresa),
+             numero, tipoDoc ('OC'|'OS'), logo, firma, elaborado
+-%>
+<%
+  const esOS = tipoDoc === 'OS';
+  const titulo = esOS ? 'ORDEN DE SERVICIO' : 'ORDEN DE COMPRA';
+  const fmtFecha = (f) => f ? moment(f).format('DD/MM/YYYY') : '';
+  const v = (x) => (x === undefined || x === null) ? '' : String(x);
+  const proveedor = [v(d.proveedor_ruc), v(d.proveedor_razon_social)].filter(Boolean).join(' - ');
+  const dirEmpresa = v(emp.direccion);
+-%>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title><%= titulo %> <%= numero %> - <%= emp.razonSocial %></title>
+<style>
+<%- fontFaceCss() %>
+@page { size: A4; margin: 6mm 5mm 6mm 5mm; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { background: #fff; color: #000; }
+body { font-family: 'Tinos', 'Times New Roman', serif; font-size: 7.4pt; }
+
+.page { height: 285mm; display: flex; flex-direction: column; }
+
+/* ---------- Cabecera ---------- */
+.head { display: flex; justify-content: space-between; align-items: flex-start; min-height: 30mm; }
+.head-left { width: 118mm; position: relative; padding-left: 2mm; }
+.logo { position: absolute; left: 0; top: 0; width: 17mm; height: 17mm; object-fit: contain; }
+.razon { text-align: center; font-weight: 700; font-size: 15.5pt; padding: 3.5mm 0 0 18mm; letter-spacing: .1pt; line-height: 1.1; min-height: 16.5mm; }
+.razon.larga { font-size: 13pt; padding-top: 2mm; }
+.os .razon.larga { font-size: 12.5pt; }
+.os .razon { font-family: 'Arimo', Arial, sans-serif; font-size: 14.5pt; }
+.dir-emp { font-weight: 700; font-size: 6.6pt; margin-top: 1mm; padding-left: 2mm; }
+.tlf { font-weight: 700; font-size: 6.6pt; margin-top: 1.2mm; padding-left: 16mm; min-height: 3mm; }
+
+.head-right { width: 63mm; margin-right: 2mm; }
+.aprobado { text-align: center; font-family: 'Arimo', Arial, sans-serif; font-weight: 700; font-size: 9pt;
+            text-decoration: underline; margin: 0 0 2.5mm; height: 4mm; }
+.ruc-box { border: 2px solid #000; text-align: center; }
+.ruc-box .ruc { font-family: 'Cousine', 'Courier New', monospace; font-weight: 700; font-size: 12.5pt; padding: 1.4mm 0 .4mm; }
+.ruc-box .tipo { font-family: 'Cousine', 'Courier New', monospace; font-weight: 700; font-size: 10pt; background: #c8c8c8; padding: .5mm 0; }
+.ruc-box .num { font-weight: 700; font-size: 9pt; padding: 1.6mm 0 1.8mm; }
+
+/* ---------- Datos ---------- */
+.datos { display: flex; justify-content: space-between; padding: 0 2mm; margin-top: .5mm; }
+.datos table { border-collapse: collapse; }
+.datos td { font-weight: 700; font-size: 6.6pt; padding: .75mm 0; vertical-align: top; white-space: nowrap; }
+.datos td.lbl { width: 26mm; }
+.datos td.sep { width: 6mm; text-align: left; }
+.datos td.val { white-space: normal; max-width: 105mm; }
+.datos .izq { width: 130mm; }
+.datos .der { width: 62mm; margin-top: 4.5mm; }
+.datos .der td.lbl { width: 21mm; }
+.datos .der td.sep { width: 5mm; }
+.os .datos .der td.val { font-weight: 400; font-size: 7.6pt; }
+.os .pedido td { font-size: 7pt; }
+.os .pedido td.val { font-weight: 400; font-size: 7.6pt; }
+
+/* ---------- Items ---------- */
+.items-wrap { flex: 1 1 auto; margin-top: 3mm; border: 1.6px solid #000; display: flex; min-height: 60mm; }
+.items { width: 100%; border-collapse: collapse; table-layout: fixed; height: 100%; }
+.items th { font-weight: 400; font-size: 6.6pt; height: 6mm; border-left: 1px solid #000; border-bottom: 1.4px solid #000; text-align: center; vertical-align: middle; }
+.os .items th { border-bottom: 3px double #000; }
+.items th:first-child, .items td:first-child { border-left: none; }
+.items td { font-family: 'Arimo', Arial, sans-serif; font-size: 6.6pt; border-left: 1px solid #000; padding: .6mm 1.2mm 0; vertical-align: top; line-height: 1.25; }
+.os .items td { font-family: 'Tinos', 'Times New Roman', serif; font-size: 6.8pt; }
+.items tr.row td { height: 1px; }
+.items tr.fill td { height: auto; }
+.r { text-align: right; } .c { text-align: center; }
+
+/* ---------- Totales ---------- */
+.pie { display: flex; justify-content: space-between; margin-top: 4mm; padding: 0 2mm; height: 17mm; }
+.son { font-weight: 700; font-size: 7pt; padding-top: 3mm; }
+.os .son, .os .obs-lbl { font-family: 'Arimo', Arial, sans-serif; font-size: 7.4pt; }
+.obs-lbl { font-weight: 700; font-size: 7pt; margin-top: 2.6mm; }
+.obs-txt { font-weight: 400; }
+.tot { border-collapse: collapse; margin-right: 1mm; }
+.tot td { font-size: 6.6pt; font-weight: 700; padding: .4mm 1.5mm; white-space: nowrap; }
+.os .tot td { font-weight: 400; font-size: 7.2pt; }
+.tot td.mon { padding-right: 3mm; }
+.tot td.monto { font-family: 'Tinos', serif; width: 26mm; text-align: right; border-left: 1.4px solid #000; border-right: 1.4px solid #000; }
+.os .tot td.monto { font-family: 'Arimo', Arial, sans-serif; font-size: 8pt; }
+.tot tr:first-child td.monto { border-top: 1.4px solid #000; }
+.tot tr:last-child td.monto { border-bottom: 1.4px solid #000; }
+.os .tot tr + tr td.monto { border-top: .6px solid #999; }
+.tot tr.total td.monto { border-top: 1px solid #000; }
+
+/* ---------- Firmas ---------- */
+.firmas { position: relative; height: 26mm; margin-top: 1mm; }
+.firma-img { position: absolute; right: 26mm; bottom: 7mm; width: 34mm; height: 17mm; object-fit: contain; }
+.firmas .linea { position: absolute; left: 0; right: 0; bottom: 4.2mm; border-top: 1px solid #000; }
+.firmas .n { position: absolute; bottom: 5mm; font-weight: 700; font-size: 7pt; text-align: center; width: 70mm; }
+.firmas .t { position: absolute; bottom: 0; font-weight: 700; font-size: 6.6pt; text-align: center; width: 70mm; }
+.firmas .izq { left: 18mm; } .firmas .der { right: 6mm; }
+
+/* ---------- Importante ---------- */
+.importante { border: 1px solid #000; margin: 2.5mm 6mm 0; padding: 2mm 3mm 2.2mm; text-align: center; font-weight: 700; font-size: 6.6pt; line-height: 1.55; }
+.os .importante { font-family: 'Arimo', Arial, sans-serif; font-size: 6.6pt; }
+.importante .h { margin-bottom: 2.4mm; }
+.importante .gap { margin-top: 1.6mm; }
+</style>
+</head>
+<body class="<%= esOS ? 'os' : 'oc' %>">
+<div class="page">
+
+  <!-- CABECERA -->
+  <div class="head">
+    <div class="head-left">
+      <% if (logo) { %><img class="logo" src="<%= logo %>" alt=""><% } %>
+      <div class="razon<%= emp.razonSocial.length > 34 ? ' larga' : '' %>"><%= emp.razonSocial %></div>
+      <div class="dir-emp"><%= dirEmpresa %></div>
+      <div class="tlf"><%= emp.telefono ? 'Tlf.: ' + emp.telefono : '' %></div>
+    </div>
+    <div class="head-right">
+      <div class="aprobado">APROBADO</div>
+      <div class="ruc-box">
+        <div class="ruc">RUC <%= emp.ruc %></div>
+        <div class="tipo"><%= titulo %></div>
+        <div class="num"><%= numero %></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DATOS -->
+  <div class="datos">
+    <table class="izq">
+      <tr><td class="lbl">PROVEEDOR</td><td class="sep">:</td><td class="val"><%= proveedor %></td></tr>
+      <tr><td class="lbl">DIRECCION</td><td class="sep">:</td><td class="val"><%= v(d.proveedor_direccion) || (esOS ? '-' : '') %></td></tr>
+      <% if (!esOS) { %>
+      <tr><td class="lbl">CTA. CTE.</td><td class="sep">:</td><td class="val"><%= v(d.proveedor_cuenta_corriente) %></td></tr>
+      <% } %>
+      <tr><td class="lbl">ATENCION</td><td class="sep">:</td><td class="val"><%= v(d.proveedor_contacto) %></td></tr>
+      <tr><td class="lbl">CONDICIONES DE PAGO :</td><td class="sep"></td><td class="val"><%= v(d.condiciones_pago) %></td></tr>
+      <% if (esOS) { %>
+      <tr><td class="lbl">AREA</td><td class="sep">:</td><td class="val"><%= v(d.area) %></td></tr>
+      <tr><td class="lbl">PROYECTO</td><td class="sep">:</td><td class="val"><%= v(d.obra) || '-' %></td></tr>
+      <tr><td class="lbl">PARA SER USADO EN</td><td class="sep">:</td><td class="val"><%= v(d.para_ser_usado_en) %></td></tr>
+      <tr class="pedido"><td class="lbl">PEDIDO Nª</td><td class="sep">:</td><td class="val"><%= v(d.pedido) %></td></tr>
+      <% } else { %>
+      <tr><td class="lbl">PARA SER USADO EN</td><td class="sep">:</td><td class="val"><%= v(d.para_ser_usado_en) %></td></tr>
+      <tr><td class="lbl">LUGAR DE ENTREGA</td><td class="sep">:</td><td class="val"><%= v(d.lugar_entrega) %></td></tr>
+      <tr><td class="lbl">PROYECTO</td><td class="sep">:</td><td class="val"><%= v(d.obra) || '-' %></td></tr>
+      <% } %>
+    </table>
+    <table class="der">
+      <tr><td class="lbl">FAX</td><td class="sep">:</td><td class="val"></td></tr>
+      <tr><td class="lbl">FECHA</td><td class="sep">:</td><td class="val"><%= fmtFecha(d.fecha) %></td></tr>
+      <% if (!esOS) { %>
+      <tr><td class="lbl">COTIZACION</td><td class="sep">:</td><td class="val"><%= v(d.cotizacion) %></td></tr>
+      <tr><td class="lbl">ORDEN PEDIDO</td><td class="sep">:</td><td class="val"><%= v(d.orden_pedido) %></td></tr>
+      <% } %>
+      <tr><td class="lbl">FECHA ENTREGA</td><td class="sep">:</td><td class="val"><%= fmtFecha(d.fecha_entrega || d.fecha) %></td></tr>
+    </table>
+  </div>
+
+  <!-- ITEMS -->
+  <div class="items-wrap">
+    <table class="items">
+      <% if (esOS) { %>
+      <colgroup><col style="width:5%"><col style="width:23%"><col style="width:7%"><col style="width:30%"><col style="width:5%"><col style="width:8%"><col style="width:10%"><col style="width:12%"></colgroup>
+      <thead><tr><th>ITEM</th><th>DESCRIPCION</th><th>C.COSTO</th><th>OBSERVACIONES</th><th>U.M.</th><th>CANTIDAD</th><th>P.UNITARIO</th><th>P.TOTAL</th></tr></thead>
+      <tbody>
+      <% calc.lineas.forEach(l => { %>
+        <tr class="row"><td><%= l.item %></td><td><%= l.descripcion %></td><td class="c"><%= v(l.c_costo) %></td><td><%= v(l.observaciones) %></td><td class="c"><%= l.unidad %></td><td class="r"><%= formatNumber(l.cantidad, 2) %></td><td class="r"><%= formatNumber(l.precio_unitario, 4) %></td><td class="r"><%= formatNumber(l.importe, 2) %></td></tr>
+      <% }) %>
+        <tr class="fill"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      </tbody>
+      <% } else { %>
+      <colgroup><col style="width:5.5%"><col style="width:26%"><col style="width:15%"><col style="width:11%"><col style="width:9%"><col style="width:10%"><col style="width:11.5%"><col style="width:12%"></colgroup>
+      <thead><tr><th>ITEM</th><th style="text-align:left;padding-left:3mm">DESCRIPCIÓN</th><th>OBSERVACIONES</th><th>CANTIDAD</th><th>U.MEDIDA</th><th>C. COSTO</th><th>P.UNITARIO</th><th>TOTAL</th></tr></thead>
+      <tbody>
+      <% calc.lineas.forEach(l => { %>
+        <tr class="row"><td><%= l.item %></td><td><%= l.descripcion %></td><td><%= v(l.observaciones) %></td><td class="r"><%= formatNumber(l.cantidad, 2) %></td><td class="c"><%= l.unidad %></td><td class="c"><%= v(l.c_costo) %></td><td class="r"><%= formatNumber(l.precio_unitario, 4) %></td><td class="r"><%= formatNumber(l.importe, 2) %></td></tr>
+      <% }) %>
+        <tr class="fill"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      </tbody>
+      <% } %>
+    </table>
+  </div>
+
+  <!-- SON / TOTALES -->
+  <div class="pie">
+    <div>
+      <div class="son"><%= esOS ? 'Son: ' : 'Son : ' %><%= calc.son %></div>
+      <div class="obs-lbl">OBSERVACIONES : <span class="obs-txt"><%= v(d.observaciones) %></span></div>
+    </div>
+    <table class="tot">
+      <tr><td>VALOR VENTA</td><td></td><td class="mon"><%= calc.moneda %></td><td class="monto"><%= formatNumber(calc.valorVenta, 2) %></td></tr>
+      <tr><td>I.G.V.</td><td><%= formatNumber(calc.igvPorcentaje, 2) %>%</td><td class="mon"><%= calc.moneda %></td><td class="monto"><%= formatNumber(calc.igv, 2) %></td></tr>
+      <tr class="total"><td>TOTAL</td><td></td><td class="mon"><%= calc.moneda %></td><td class="monto"><%= formatNumber(calc.total, 2) %></td></tr>
+    </table>
+  </div>
+
+  <!-- FIRMAS -->
+  <div class="firmas">
+    <% if (firma) { %><img class="firma-img" src="<%= firma %>" alt=""><% } %>
+    <div class="n izq"><%= v(elaborado).toUpperCase() %></div>
+    <div class="n der"><%= v(emp.aprobador).toUpperCase() %></div>
+    <div class="linea"></div>
+    <div class="t izq">Elaboración</div>
+    <div class="t der">Vº Bº Aprobado</div>
+  </div>
+
+  <!-- IMPORTANTE -->
+  <div class="importante">
+    <div class="h">IMPORTANTE:</div>
+    <div>Facturar en original y copia a nombre de</div>
+    <div><%= emp.razonSocial %></div>
+    <div><%= dirEmpresa %></div>
+    <% if (!esOS) { %>
+    <div class="gap">y asi mismo consignar Numero de Orden de Compra.</div>
+    <div>- Remitir la factura y Guia sellada con esta Orden de Compra a &nbsp;&nbsp;&nbsp; <%= emp.razonSocial %></div>
+    <% } %>
+    <div>De acuerdo a la Resolución N° 000193-2020/SUNAT emitida el 05 de Noviembre del 2020 y modificatorias en la Resolución N° 000042-2021/SUNAT</div>
+    <div>emitida el 19 de Marzo del 2021, se requiere que en la facturación electrónica se envíen los datos concernientes al pago de nuestros servicios</div>
+  </div>
+
+</div>
+</body>
+</html>
